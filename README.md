@@ -7,6 +7,7 @@ The UI uses a dark "Aurora Glass" theme: translucent glass cards, purple → pin
 ## Features
 
 - **Expenses** (`/`): add expenses with a description, amount (₹), category and date. You can mark an expense as recurring and add your own categories.
+- **Add by voice**: tap the mic on the Expenses page and say something like "I spent 1000 on rent" or "200 for snacks yesterday". The app picks out the amount, category, date and description, and shows a preview you confirm before anything is saved. Speech-to-text uses the browser's built-in Web Speech API (Chrome, Edge, Safari; not Firefox), and the glow is [`voice-glow`](https://libraries.dev/voice.html). The mic needs `https` or `localhost`. You can type the sentence instead.
 - **Summary** (`/summary`): total and this-month spending, a pie chart by category and a monthly bar chart.
 - **Budget** (`/budget`): set a spending limit per category and track progress against it.
 - **Recurring** (`/recurring`): pause, resume, delete or "process" recurring expenses (this logs the expense and moves the next due date forward).
@@ -44,6 +45,8 @@ Open http://localhost:3000.
 | `lib/store.tsx` | All data and actions (`useExpenseStore`). This is the only file that touches `localStorage` |
 | `lib/categories.ts` | Default categories with their icons and colours |
 | `lib/format.ts` | Currency and date helpers |
+| `lib/voice-parse.ts` | Turns a spoken sentence into amount, category, date and description |
+| `components/voice-add.tsx` | The voice card: mic button, glow, and confirm step |
 
 ## Tech stack
 
