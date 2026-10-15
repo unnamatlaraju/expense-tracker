@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2, Plus, LucidePieChart, BarChart3, FileText, Download, Repeat } from "lucide-react"
 import {
   PieChart as RechartsPieChart,
+  Pie,
   Cell,
   ResponsiveContainer,
   BarChart,
@@ -57,6 +58,9 @@ const DEFAULT_CATEGORIES = [
   "Others",
 ]
 
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+
 const CHART_COLORS = ["#d97706", "#15803d", "#ec4899", "#84cc16", "#be123c", "#3b82f6", "#8b5cf6", "#f59e0b"]
 
 export default function ExpenseTracker() {
@@ -84,6 +88,8 @@ export default function ExpenseTracker() {
   const [reportEndDate, setReportEndDate] = useState("")
   const [reportCategory, setReportCategory] = useState("")
 
+  const [isLoaded, setIsLoaded] = useState(false)
+
   // Load data from localStorage
   useEffect(() => {
     const savedExpenses = localStorage.getItem("expenses")
@@ -95,24 +101,29 @@ export default function ExpenseTracker() {
     if (savedCategories) setCategories(JSON.parse(savedCategories))
     if (savedBudgets) setBudgets(JSON.parse(savedBudgets))
     if (savedRecurring) setRecurringExpenses(JSON.parse(savedRecurring))
+    setIsLoaded(true)
   }, [])
 
   // Save to localStorage
   useEffect(() => {
+    if (!isLoaded) return
     localStorage.setItem("expenses", JSON.stringify(expenses))
-  }, [expenses])
+  }, [expenses, isLoaded])
 
   useEffect(() => {
+    if (!isLoaded) return
     localStorage.setItem("categories", JSON.stringify(categories))
-  }, [categories])
+  }, [categories, isLoaded])
 
   useEffect(() => {
+    if (!isLoaded) return
     localStorage.setItem("budgets", JSON.stringify(budgets))
-  }, [budgets])
+  }, [budgets, isLoaded])
 
   useEffect(() => {
+    if (!isLoaded) return
     localStorage.setItem("recurringExpenses", JSON.stringify(recurringExpenses))
-  }, [recurringExpenses])
+  }, [recurringExpenses, isLoaded])
 
   const addExpense = () => {
     if (!description || !amount || !category || !date) {
@@ -265,7 +276,7 @@ export default function ExpenseTracker() {
         expense.amount.toString(),
       ]),
     ]
-      .map((row) => row.join(","))
+      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
       .join("\n")
 
     const blob = new Blob([csvContent], { type: "text/csv" })
@@ -296,7 +307,7 @@ export default function ExpenseTracker() {
           <p>Generated on: ${new Date().toLocaleDateString("en-IN")}</p>
           ${reportStartDate ? `<p>From: ${reportStartDate}</p>` : ""}
           ${reportEndDate ? `<p>To: ${reportEndDate}</p>` : ""}
-          ${reportCategory ? `<p>Category: ${reportCategory}</p>` : ""}
+          ${reportCategory ? `<p>Category: ${escapeHtml(reportCategory)}</p>` : ""}
           
           <table>
             <thead>
@@ -313,8 +324,8 @@ export default function ExpenseTracker() {
                   (expense) => `
                 <tr>
                   <td>${new Date(expense.date).toLocaleDateString("en-IN")}</td>
-                  <td>${expense.description}</td>
-                  <td>${expense.category}</td>
+                  <td>${escapeHtml(expense.description)}</td>
+                  <td>${escapeHtml(expense.category)}</td>
                   <td>${formatCurrency(expense.amount)}</td>
                 </tr>
               `,
@@ -375,11 +386,14 @@ export default function ExpenseTracker() {
   }
 
   useEffect(() => {
-    const updatedBudgets = budgets.map((budget) => ({
-      ...budget,
-      spent: getCategoryTotal(budget.category),
-    }))
-    setBudgets(updatedBudgets)
+    setBudgets((prevBudgets) =>
+      prevBudgets.map((budget) => ({
+        ...budget,
+        spent: expenses
+          .filter((expense) => expense.category === budget.category)
+          .reduce((sum, expense) => sum + expense.amount, 0),
+      })),
+    )
   }, [expenses])
 
   const formatCurrency = (amount: number) => {
@@ -492,14 +506,14 @@ export default function ExpenseTracker() {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="recurring" checked={isRecurring} onCheckedChange={setIsRecurring} />
+                  <Checkbox id="recurring" checked={isRecurring} onCheckedChange={(checked) => setIsRecurring(checked === true)} />
                   <Label htmlFor="recurring">This is a recurring expense</Label>
                 </div>
 
                 {isRecurring && (
                   <div>
                     <Label htmlFor="frequency">Frequency</Label>
-                    <Select value={recurringFrequency} onValueChange={setRecurringFrequency}>
+                    <Select value={recurringFrequency} onValueChange={(value) => setRecurringFrequency(value as "monthly" | "weekly" | "yearly")}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -643,10 +657,13 @@ export default function ExpenseTracker() {
                 <CardContent>
                   {getCategoryData().length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
-                      <RechartsPieChart data={getCategoryData()}>
-                        {getCategoryData().map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                        ))}
+                      <RechartsPieChart>
+                        <Pie data={getCategoryData()} dataKey="value" nameKey="name" outerRadius={100} label>
+                          {getCategoryData().map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
                       </RechartsPieChart>
                     </ResponsiveContainer>
                   ) : (
