@@ -1,12 +1,20 @@
-import type { Metadata } from 'next'
-import { GeistSans } from 'geist/font/sans'
-import { GeistMono } from 'geist/font/mono'
-import { Analytics } from '@vercel/analytics/next'
-import './globals.css'
+import type { Metadata, Viewport } from "next"
+import { Sora } from "next/font/google"
+import { Analytics } from "@vercel/analytics/next"
+import { AppShell } from "@/components/app-shell"
+import { ExpenseStoreProvider } from "@/lib/store"
+import "./globals.css"
+
+const sora = Sora({ subsets: ["latin"], variable: "--font-sora" })
 
 export const metadata: Metadata = {
-  title: 'Personal Expense Tracker',
-  description: 'Track daily expenses, budgets and recurring payments',
+  title: { default: "Spendly · Expense Tracker", template: "%s · Spendly" },
+  description: "Track daily expenses, budgets and recurring payments",
+}
+
+export const viewport: Viewport = {
+  themeColor: "#07071a",
+  viewportFit: "cover",
 }
 
 export default function RootLayout({
@@ -16,8 +24,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        {children}
+      <body className={`${sora.variable} font-sans`}>
+        <ExpenseStoreProvider>
+          <AppShell>{children}</AppShell>
+        </ExpenseStoreProvider>
         <Analytics />
       </body>
     </html>
