@@ -5,6 +5,7 @@ import { type FormEvent, useMemo, useState } from "react"
 import { CategoryIcon } from "@/components/category-icon"
 import { EmptyState } from "@/components/empty-state"
 import { ExpenseRow } from "@/components/expense-row"
+import { type VoiceDraft, VoiceAdd } from "@/components/voice-add"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -69,9 +70,20 @@ export function TrackerView() {
     setError("")
   }
 
+  const fillForm = (draft: VoiceDraft) => {
+    setAmount(draft.amount ? String(draft.amount) : "")
+    setDescription(draft.description)
+    setCategory(draft.category)
+    setDate(draft.date)
+    setError("")
+    document.getElementById("amount")?.focus()
+  }
+
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-      <Card className="lg:sticky lg:top-10">
+      <div className="min-w-0 space-y-6">
+        <VoiceAdd onEdit={fillForm} />
+        <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="size-4 text-[#f0abfc]" />
@@ -223,7 +235,8 @@ export function TrackerView() {
             </Button>
           </form>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
 
       <Card className="min-w-0">
         <CardHeader>
