@@ -119,7 +119,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile bottom tab bar */}
       <nav
         aria-label="Main"
-        className="glass fixed inset-x-3 bottom-3 z-30 rounded-2xl bg-[#14142e]/85 p-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] lg:hidden"
+        className="glass fixed inset-x-3 bottom-3 z-30 rounded-2xl bg-[#14142e]/85! p-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] lg:hidden"
       >
         <div className="relative grid grid-cols-5">
           {active >= 0 && (
