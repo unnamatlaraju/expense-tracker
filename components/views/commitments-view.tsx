@@ -51,8 +51,17 @@ const dueHint = (days: number) => {
 }
 
 export function CommitmentsView() {
-  const { commitments, categories, addCommitment, updateCommitment, deleteCommitment, processCommitment, skipCommitment, toggleCommitment } =
-    useExpenseStore()
+  const {
+    commitments,
+    categories,
+    addCommitment,
+    updateCommitment,
+    deleteCommitment,
+    processCommitment,
+    skipCommitment,
+    toggleCommitment,
+    busyCommitments,
+  } = useExpenseStore()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -143,6 +152,9 @@ export function CommitmentsView() {
                   const days = daysUntil(commitment.nextDue, today)
                   const isEditing = editingId === commitment.id
                   const confirming = confirmDeleteId === commitment.id
+                  // A mutation for this row is in flight: block the buttons so a
+                  // double-click can't pay/skip two periods from one intent.
+                  const busy = busyCommitments.includes(commitment.id)
 
                   return (
                     <li
@@ -191,7 +203,7 @@ export function CommitmentsView() {
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         {isOpen(status) && (
-                          <Button size="sm" onClick={() => processCommitment(commitment.id)}>
+                          <Button size="sm" disabled={busy} onClick={() => processCommitment(commitment.id)}>
                             <Check /> Mark paid
                           </Button>
                         )}
@@ -200,6 +212,7 @@ export function CommitmentsView() {
                           <Button
                             size="sm"
                             variant="outline"
+                            disabled={busy}
                             title="Move to the next period without logging an expense"
                             onClick={() => skipCommitment(commitment.id)}
                           >
@@ -210,6 +223,7 @@ export function CommitmentsView() {
                         <Button
                           size="icon-sm"
                           variant="ghost"
+                          disabled={busy}
                           title={commitment.isActive ? "Pause reminders" : "Resume"}
                           aria-label={commitment.isActive ? "Pause" : "Resume"}
                           onClick={() => toggleCommitment(commitment.id)}
@@ -233,6 +247,7 @@ export function CommitmentsView() {
                             <Button
                               size="xs"
                               variant="destructive"
+                              disabled={busy}
                               onClick={() => {
                                 deleteCommitment(commitment.id)
                                 setConfirmDeleteId(null)

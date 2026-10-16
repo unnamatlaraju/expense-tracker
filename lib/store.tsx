@@ -46,6 +46,8 @@ interface ExpenseStore {
   skipCommitment: (id: string) => void
   deleteCommitment: (id: string) => void
   processCommitment: (id: string) => void
+  /** Ids of commitments with a mutation in flight, so their buttons can disable. */
+  busyCommitments: string[]
   logout: () => void
 }
 
@@ -60,6 +62,30 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [commitments, setCommitments] = useState<Commitment[]>([])
   const loadedRef = useRef(false)
+
+  // Commitments with a mutation in flight. The ref is the guard: it is read and
+  // written synchronously, so a second click in the same tick can't slip past
+  // it. The state exists purely so the buttons can render as disabled.
+  const busyRef = useRef<Set<string>>(new Set())
+  const [busyCommitments, setBusyCommitments] = useState<string[]>([])
+
+  /**
+   * Runs `action` at most once per commitment while a previous run is still in
+   * flight. Without this a double-click on "Mark paid" fired two requests, and
+   * because each one reads the due date *after* the previous advance, they paid
+   * two different periods — logging two months of rent from one intent.
+   */
+  const once = useCallback(async (id: string, action: () => Promise<unknown>) => {
+    if (busyRef.current.has(id)) return
+    busyRef.current.add(id)
+    setBusyCommitments((prev) => [...prev, id])
+    try {
+      await action()
+    } finally {
+      busyRef.current.delete(id)
+      setBusyCommitments((prev) => prev.filter((busy) => busy !== id))
+    }
+  }, [])
 
   const applyBootstrap = useCallback((data: Bootstrap) => {
     setUser(data.user)
@@ -193,62 +219,70 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
 
   const updateCommitment = useCallback(
     (id: string, patch: CommitmentPatch) => {
-      apiFetch<{ commitment: Commitment }>(`/api/commitments/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      })
-        .then(({ commitment }) => replaceCommitment(commitment))
-        .catch(fail)
+      void once(id, () =>
+        apiFetch<{ commitment: Commitment }>(`/api/commitments/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        })
+          .then(({ commitment }) => replaceCommitment(commitment))
+          .catch(fail),
+      )
     },
-    [fail, replaceCommitment],
+    [fail, once, replaceCommitment],
   )
 
   // Separate from updateCommitment so the flip feels instant; it's just one flag.
   const toggleCommitment = useCallback(
     (id: string) => {
-      setCommitments((prev) => {
-        const current = prev.find((c) => c.id === id)
-        if (!current) return prev
-        const isActive = !current.isActive
+      if (busyRef.current.has(id)) return
+      const current = commitments.find((c) => c.id === id)
+      if (!current) return
+      const isActive = !current.isActive
+      setCommitments((prev) => prev.map((c) => (c.id === id ? { ...c, isActive } : c)))
+      void once(id, () =>
         apiFetch<{ commitment: Commitment }>(`/api/commitments/${id}`, {
           method: "PATCH",
           body: JSON.stringify({ isActive }),
         })
           .then(({ commitment }) => replaceCommitment(commitment))
-          .catch(fail)
-        return prev.map((c) => (c.id === id ? { ...c, isActive } : c))
-      })
+          .catch(fail),
+      )
     },
-    [fail, replaceCommitment],
+    [commitments, fail, once, replaceCommitment],
   )
 
   const skipCommitment = useCallback(
     (id: string) => {
-      apiFetch<{ commitment: Commitment }>(`/api/commitments/${id}/skip`, { method: "POST" })
-        .then(({ commitment }) => replaceCommitment(commitment))
-        .catch(fail)
+      void once(id, () =>
+        apiFetch<{ commitment: Commitment }>(`/api/commitments/${id}/skip`, { method: "POST" })
+          .then(({ commitment }) => replaceCommitment(commitment))
+          .catch(fail),
+      )
     },
-    [fail, replaceCommitment],
+    [fail, once, replaceCommitment],
   )
 
   const deleteCommitment = useCallback(
     (id: string) => {
+      if (busyRef.current.has(id)) return
       setCommitments((prev) => prev.filter((c) => c.id !== id))
-      apiFetch(`/api/commitments/${id}`, { method: "DELETE" }).catch(fail)
+      void once(id, () => apiFetch(`/api/commitments/${id}`, { method: "DELETE" }).catch(fail))
     },
-    [fail],
+    [fail, once],
   )
 
   const processCommitment = useCallback(
     (id: string) => {
-      apiFetch<{ expense: Expense; commitment: Commitment }>(`/api/commitments/${id}/process`, { method: "POST" })
-        .then(({ expense, commitment }) => {
-          upsertExpense(expense)
-          replaceCommitment(commitment)
-        })
-        .catch(fail)
+      void once(id, () =>
+        apiFetch<{ expense: Expense; commitment: Commitment }>(`/api/commitments/${id}/process`, { method: "POST" })
+          .then(({ expense, commitment }) => {
+            upsertExpense(expense)
+            replaceCommitment(commitment)
+          })
+          .catch(fail),
+      )
     },
-    [fail, replaceCommitment, upsertExpense],
+    [fail, once, replaceCommitment, upsertExpense],
   )
 
   const logout = useCallback(() => {
@@ -281,6 +315,7 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       skipCommitment,
       deleteCommitment,
       processCommitment,
+      busyCommitments,
       logout,
     }),
     [
@@ -302,6 +337,7 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       skipCommitment,
       deleteCommitment,
       processCommitment,
+      busyCommitments,
       logout,
     ],
   )
