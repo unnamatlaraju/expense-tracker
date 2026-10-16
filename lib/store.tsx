@@ -36,11 +36,11 @@ interface ExpenseStore {
   categories: string[]
   budgets: Budget[]
   commitments: Commitment[]
-  addExpense: (input: NewExpense) => void
+  addExpense: (input: NewExpense) => Promise<void>
   deleteExpense: (id: string) => void
   addCategory: (name: string) => boolean
   setBudget: (category: string, limit: number) => void
-  addCommitment: (input: NewCommitment) => void
+  addCommitment: (input: NewCommitment) => Promise<void>
   updateCommitment: (id: string, patch: CommitmentPatch) => void
   toggleCommitment: (id: string) => void
   skipCommitment: (id: string) => void
@@ -151,7 +151,9 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
 
   const addExpense = useCallback(
     (input: NewExpense) => {
-      apiFetch<{ expense: Expense; commitment: Commitment | null }>("/api/expenses", {
+      // Returns the request promise so a form can keep its submit button
+      // disabled until the write lands (a double-submit would duplicate it).
+      return apiFetch<{ expense: Expense; commitment: Commitment | null }>("/api/expenses", {
         method: "POST",
         body: JSON.stringify(input),
       })
@@ -207,7 +209,8 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
 
   const addCommitment = useCallback(
     (input: NewCommitment) => {
-      apiFetch<{ commitment: Commitment }>("/api/commitments", {
+      // Returns the promise so the form can guard against a double-submit.
+      return apiFetch<{ commitment: Commitment }>("/api/commitments", {
         method: "POST",
         body: JSON.stringify(input),
       })

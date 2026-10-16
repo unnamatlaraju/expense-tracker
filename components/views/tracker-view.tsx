@@ -1,7 +1,7 @@
 "use client"
 
 import { Check, CircleAlert, Plus, Receipt, Repeat, Sparkles } from "lucide-react"
-import { type FormEvent, useMemo, useState } from "react"
+import { type FormEvent, useMemo, useRef, useState } from "react"
 import { CategoryIcon } from "@/components/category-icon"
 import { EmptyState } from "@/components/empty-state"
 import { ExpenseRow } from "@/components/expense-row"
@@ -32,32 +32,45 @@ export function TrackerView() {
   const [justAdded, setJustAdded] = useState(false)
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [newCategory, setNewCategory] = useState("")
+  // A ref is the guard (synchronous, so a second submit in the same tick can't
+  // slip through) and the state drives the button's disabled look.
+  const submittingRef = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const newestFirst = useMemo(() => [...expenses].reverse(), [expenses])
   const total = useMemo(() => expenses.reduce((sum, e) => sum + e.amount, 0), [expenses])
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (submittingRef.current) return
+
     const value = Number.parseFloat(amount)
     if (!value || value <= 0) return setError("Enter an amount greater than 0.")
     if (!description.trim()) return setError("Add a short description, e.g. “Lunch”.")
     if (!date) return setError("Pick a date.")
 
-    addExpense({
-      description: description.trim(),
-      amount: value,
-      category,
-      date,
-      recurringFrequency: isRecurring ? frequency : undefined,
-    })
-    setAmount("")
-    setDescription("")
-    setDate(todayISO())
-    setIsRecurring(false)
-    setFrequency("monthly")
-    setError("")
-    setJustAdded(true)
-    setTimeout(() => setJustAdded(false), 1800)
+    submittingRef.current = true
+    setSubmitting(true)
+    try {
+      await addExpense({
+        description: description.trim(),
+        amount: value,
+        category,
+        date,
+        recurringFrequency: isRecurring ? frequency : undefined,
+      })
+      setAmount("")
+      setDescription("")
+      setDate(todayISO())
+      setIsRecurring(false)
+      setFrequency("monthly")
+      setError("")
+      setJustAdded(true)
+      setTimeout(() => setJustAdded(false), 1800)
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
   }
 
   const submitNewCategory = () => {
@@ -222,7 +235,7 @@ export function TrackerView() {
               </p>
             )}
 
-            <Button type="submit" size="lg" className="w-full">
+            <Button type="submit" size="lg" className="w-full" disabled={submitting}>
               {justAdded ? (
                 <>
                   <Check /> Added

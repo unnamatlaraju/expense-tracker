@@ -1,7 +1,7 @@
 "use client"
 
 import { CircleAlert, Plus, Save } from "lucide-react"
-import { type FormEvent, useState } from "react"
+import { type FormEvent, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -32,7 +32,7 @@ export function CommitmentForm({
 }: {
   categories: string[]
   commitment?: Commitment
-  onSubmit: (values: NewCommitment) => void
+  onSubmit: (values: NewCommitment) => void | Promise<void>
   onCancel?: () => void
 }) {
   const editing = Boolean(commitment)
@@ -48,9 +48,14 @@ export function CommitmentForm({
   const [autopay, setAutopay] = useState(commitment?.autopay ?? false)
   const [notes, setNotes] = useState(commitment?.notes ?? "")
   const [error, setError] = useState("")
+  // A ref is the guard (read/written synchronously, so a second submit in the
+  // same tick can't slip through) and the state drives the button's disabled look.
+  const submittingRef = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (submittingRef.current) return
 
     const value = Number.parseFloat(amount)
     if (!Number.isFinite(value) || value <= 0) return setError("Enter an amount greater than 0.")
@@ -61,29 +66,36 @@ export function CommitmentForm({
     if (!Number.isFinite(days) || days < 0 || days > 30) return setError("Remind between 0 and 30 days before.")
     if (endDate && endDate < nextDue) return setError("The end date can't be before the due date.")
 
-    onSubmit({
-      description: description.trim(),
-      amount: value,
-      category,
-      frequency,
-      kind,
-      nextDue,
-      remindersEnabled,
-      remindDaysBefore: days,
-      endDate: endDate || null,
-      autopay,
-      notes: notes.trim() || null,
-    })
+    submittingRef.current = true
+    setSubmitting(true)
+    try {
+      await onSubmit({
+        description: description.trim(),
+        amount: value,
+        category,
+        frequency,
+        kind,
+        nextDue,
+        remindersEnabled,
+        remindDaysBefore: days,
+        endDate: endDate || null,
+        autopay,
+        notes: notes.trim() || null,
+      })
 
-    setError("")
-    // Only clear for a fresh entry; when editing the caller closes the form.
-    if (!editing) {
-      setDescription("")
-      setAmount("")
-      setNextDue(todayISO())
-      setEndDate("")
-      setNotes("")
-      setAutopay(false)
+      setError("")
+      // Only clear for a fresh entry; when editing the caller closes the form.
+      if (!editing) {
+        setDescription("")
+        setAmount("")
+        setNextDue(todayISO())
+        setEndDate("")
+        setNotes("")
+        setAutopay(false)
+      }
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
     }
   }
 
@@ -247,7 +259,7 @@ export function CommitmentForm({
           )}
 
           <div className="flex gap-3">
-            <Button type="submit" size="lg" className="flex-1">
+            <Button type="submit" size="lg" className="flex-1" disabled={submitting}>
               {editing ? (
                 <>
                   <Save /> Save changes
