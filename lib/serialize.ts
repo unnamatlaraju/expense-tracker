@@ -1,5 +1,9 @@
-import type { Budget as PrismaBudget, Expense as PrismaExpense, RecurringExpense as PrismaRecurring } from "@prisma/client"
-import type { Budget, Expense, Frequency, RecurringExpense } from "@/lib/types"
+import type {
+  Budget as PrismaBudget,
+  Commitment as PrismaCommitment,
+  Expense as PrismaExpense,
+} from "@prisma/client"
+import type { Budget, Commitment, CommitmentKind, Expense, Frequency } from "@/lib/types"
 
 /**
  * Prisma returns `Decimal` (money) and `Date` (date-only) objects. The UI works
@@ -7,7 +11,7 @@ import type { Budget, Expense, Frequency, RecurringExpense } from "@/lib/types"
  * and the components stay untouched.
  */
 
-const toISODate = (value: Date) => value.toISOString().slice(0, 10)
+export const toISODate = (value: Date) => value.toISOString().slice(0, 10)
 
 export const serializeExpense = (e: PrismaExpense): Expense => ({
   id: e.id,
@@ -24,12 +28,18 @@ export const serializeBudget = (b: PrismaBudget): Budget => ({
   limit: Number(b.limit),
 })
 
-export const serializeRecurring = (r: PrismaRecurring): RecurringExpense => ({
-  id: r.id,
-  description: r.description,
-  amount: Number(r.amount),
-  category: r.category,
-  frequency: r.frequency as Frequency,
-  nextDue: toISODate(r.nextDue),
-  isActive: r.isActive,
+export const serializeCommitment = (c: PrismaCommitment): Commitment => ({
+  id: c.id,
+  description: c.description,
+  amount: Number(c.amount),
+  category: c.category,
+  frequency: c.frequency as Frequency,
+  kind: c.kind as CommitmentKind,
+  nextDue: toISODate(c.nextDue),
+  isActive: c.isActive,
+  remindersEnabled: c.remindersEnabled,
+  remindDaysBefore: c.remindDaysBefore,
+  endDate: c.endDate ? toISODate(c.endDate) : undefined,
+  autopay: c.autopay,
+  notes: c.notes ?? undefined,
 })

@@ -4,9 +4,11 @@ import {
   budgetSchema,
   isKnownTimezone,
   isRealDate,
+  newCommitmentSchema,
   newExpenseSchema,
   roundMoney,
   timezoneSchema,
+  updateCommitmentSchema,
   updateMeSchema,
 } from "@/lib/validation"
 
@@ -119,5 +121,87 @@ describe("timezone validation", () => {
 
   it("caps the stored length", () => {
     expect(timezoneSchema.safeParse("A".repeat(65)).success).toBe(false)
+  })
+})
+
+const baseCommitment = {
+  description: "House rent",
+  amount: 18000,
+  category: "Rent",
+  frequency: "monthly" as const,
+  nextDue: "2026-11-01",
+}
+
+describe("newCommitmentSchema", () => {
+  it("accepts a minimal commitment and fills the defaults", () => {
+    const result = newCommitmentSchema.safeParse(baseCommitment)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.kind).toBe("other")
+      expect(result.data.remindersEnabled).toBe(true)
+      expect(result.data.remindDaysBefore).toBe(3)
+      expect(result.data.autopay).toBe(false)
+    }
+  })
+
+  it("rejects unknown kinds and frequencies", () => {
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, kind: "mortgage" }).success).toBe(false)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, frequency: "daily" }).success).toBe(false)
+  })
+
+  it("bounds the reminder lead time to 0-30 days", () => {
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, remindDaysBefore: 0 }).success).toBe(true)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, remindDaysBefore: 30 }).success).toBe(true)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, remindDaysBefore: 31 }).success).toBe(false)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, remindDaysBefore: -1 }).success).toBe(false)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, remindDaysBefore: 2.5 }).success).toBe(false)
+  })
+
+  it("rejects an end date before the first due date", () => {
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, endDate: "2026-10-31" }).success).toBe(false)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, endDate: "2026-11-01" }).success).toBe(true)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, endDate: "2028-11-01" }).success).toBe(true)
+  })
+
+  it("applies the money and date rules", () => {
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, amount: 0 }).success).toBe(false)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, amount: MAX_MONEY + 1 }).success).toBe(false)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, amount: 10.567 }).success).toBe(true)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, nextDue: "2026-02-31" }).success).toBe(false)
+  })
+
+  it("caps free text so a huge body can't be stored", () => {
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, notes: "x".repeat(501) }).success).toBe(false)
+    expect(newCommitmentSchema.safeParse({ ...baseCommitment, description: "x".repeat(201) }).success).toBe(false)
+  })
+})
+
+describe("updateCommitmentSchema", () => {
+  it("allows a single field", () => {
+    const result = updateCommitmentSchema.safeParse({ isActive: false })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).toEqual({ isActive: false })
+  })
+
+  it("rejects an empty patch", () => {
+    expect(updateCommitmentSchema.safeParse({}).success).toBe(false)
+  })
+
+  it("strips unknown keys instead of passing them through", () => {
+    const result = updateCommitmentSchema.safeParse({ amount: 500, userId: "someone-else", id: "hijack" })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).toEqual({ amount: 500 })
+  })
+
+  it("accepts null to clear the optional fields", () => {
+    const result = updateCommitmentSchema.safeParse({ endDate: null, notes: null })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).toEqual({ endDate: null, notes: null })
+  })
+
+  it("still enforces field rules when a field is present", () => {
+    expect(updateCommitmentSchema.safeParse({ remindDaysBefore: 99 }).success).toBe(false)
+    expect(updateCommitmentSchema.safeParse({ kind: "mortgage" }).success).toBe(false)
+    expect(updateCommitmentSchema.safeParse({ nextDue: "2026-02-31" }).success).toBe(false)
   })
 })

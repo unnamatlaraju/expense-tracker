@@ -3,7 +3,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { apiFetch } from "@/lib/api-client"
 import { DEFAULT_CATEGORIES } from "@/lib/default-categories"
-import type { AuthUser, Budget, Expense, NewExpense, RecurringExpense } from "@/lib/types"
+import type {
+  AuthUser,
+  Budget,
+  Commitment,
+  CommitmentPatch,
+  Expense,
+  NewCommitment,
+  NewExpense,
+} from "@/lib/types"
 
 /**
  * The UI only talks to `useExpenseStore()`, so the switch from localStorage to
@@ -16,7 +24,7 @@ interface Bootstrap {
   expenses: Expense[]
   categories: string[]
   budgets: Budget[]
-  recurring: RecurringExpense[]
+  commitments: Commitment[]
 }
 
 interface ExpenseStore {
@@ -27,14 +35,17 @@ interface ExpenseStore {
   expenses: Expense[]
   categories: string[]
   budgets: Budget[]
-  recurring: RecurringExpense[]
+  commitments: Commitment[]
   addExpense: (input: NewExpense) => void
   deleteExpense: (id: string) => void
   addCategory: (name: string) => boolean
   setBudget: (category: string, limit: number) => void
-  toggleRecurring: (id: string) => void
-  deleteRecurring: (id: string) => void
-  processRecurring: (id: string) => void
+  addCommitment: (input: NewCommitment) => void
+  updateCommitment: (id: string, patch: CommitmentPatch) => void
+  toggleCommitment: (id: string) => void
+  skipCommitment: (id: string) => void
+  deleteCommitment: (id: string) => void
+  processCommitment: (id: string) => void
   logout: () => void
 }
 
@@ -47,7 +58,7 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES)
   const [budgets, setBudgets] = useState<Budget[]>([])
-  const [recurring, setRecurring] = useState<RecurringExpense[]>([])
+  const [commitments, setCommitments] = useState<Commitment[]>([])
   const loadedRef = useRef(false)
 
   const applyBootstrap = useCallback((data: Bootstrap) => {
@@ -55,7 +66,7 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
     setExpenses(data.expenses)
     setCategories(data.categories.length > 0 ? data.categories : DEFAULT_CATEGORIES)
     setBudgets(data.budgets)
-    setRecurring(data.recurring)
+    setCommitments(data.commitments)
   }, [])
 
   const refresh = useCallback(() => {
@@ -102,19 +113,29 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
     [refresh],
   )
 
+  // A duplicate response (e.g. a double-click race) carries an already-added
+  // expense, so dedupe by id to avoid rendering it twice.
+  const upsertExpense = useCallback((expense: Expense) => {
+    setExpenses((prev) => (prev.some((e) => e.id === expense.id) ? prev : [...prev, expense]))
+  }, [])
+
+  const replaceCommitment = useCallback((commitment: Commitment) => {
+    setCommitments((prev) => prev.map((c) => (c.id === commitment.id ? commitment : c)))
+  }, [])
+
   const addExpense = useCallback(
     (input: NewExpense) => {
-      apiFetch<{ expense: Expense; recurring: RecurringExpense | null }>("/api/expenses", {
+      apiFetch<{ expense: Expense; commitment: Commitment | null }>("/api/expenses", {
         method: "POST",
         body: JSON.stringify(input),
       })
-        .then(({ expense, recurring: created }) => {
-          setExpenses((prev) => (prev.some((e) => e.id === expense.id) ? prev : [...prev, expense]))
-          if (created) setRecurring((prev) => [...prev, created])
+        .then(({ expense, commitment }) => {
+          upsertExpense(expense)
+          if (commitment) setCommitments((prev) => [...prev, commitment])
         })
         .catch(fail)
     },
-    [fail],
+    [fail, upsertExpense],
   )
 
   const deleteExpense = useCallback(
@@ -152,50 +173,82 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
         method: "PUT",
         body: JSON.stringify({ category, limit }),
       })
-        .then(({ budget }) =>
-          setBudgets((prev) => prev.map((b) => (b.category === category ? budget : b))),
-        )
+        .then(({ budget }) => setBudgets((prev) => prev.map((b) => (b.category === category ? budget : b))))
         .catch(fail)
     },
     [fail],
   )
 
-  const toggleRecurring = useCallback(
-    (id: string) => {
-      const current = recurring.find((r) => r.id === id)
-      if (!current) return
-      const isActive = !current.isActive
-      setRecurring((prev) => prev.map((r) => (r.id === id ? { ...r, isActive } : r)))
-      apiFetch<{ recurring: RecurringExpense }>(`/api/recurring/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive }),
+  const addCommitment = useCallback(
+    (input: NewCommitment) => {
+      apiFetch<{ commitment: Commitment }>("/api/commitments", {
+        method: "POST",
+        body: JSON.stringify(input),
       })
-        .then(({ recurring: updated }) => setRecurring((prev) => prev.map((r) => (r.id === id ? updated : r))))
+        .then(({ commitment }) => setCommitments((prev) => [...prev, commitment]))
         .catch(fail)
-    },
-    [recurring, fail],
-  )
-
-  const deleteRecurring = useCallback(
-    (id: string) => {
-      setRecurring((prev) => prev.filter((r) => r.id !== id))
-      apiFetch(`/api/recurring/${id}`, { method: "DELETE" }).catch(fail)
     },
     [fail],
   )
 
-  const processRecurring = useCallback(
+  const updateCommitment = useCallback(
+    (id: string, patch: CommitmentPatch) => {
+      apiFetch<{ commitment: Commitment }>(`/api/commitments/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      })
+        .then(({ commitment }) => replaceCommitment(commitment))
+        .catch(fail)
+    },
+    [fail, replaceCommitment],
+  )
+
+  // Separate from updateCommitment so the flip feels instant; it's just one flag.
+  const toggleCommitment = useCallback(
     (id: string) => {
-      apiFetch<{ expense: Expense; recurring: RecurringExpense }>(`/api/recurring/${id}/process`, { method: "POST" })
-        .then(({ expense, recurring: updated }) => {
-          // A duplicate response (double-click race) carries an already-added
-          // expense; don't let it render twice.
-          setExpenses((prev) => (prev.some((e) => e.id === expense.id) ? prev : [...prev, expense]))
-          setRecurring((prev) => prev.map((r) => (r.id === id ? updated : r)))
+      setCommitments((prev) => {
+        const current = prev.find((c) => c.id === id)
+        if (!current) return prev
+        const isActive = !current.isActive
+        apiFetch<{ commitment: Commitment }>(`/api/commitments/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ isActive }),
+        })
+          .then(({ commitment }) => replaceCommitment(commitment))
+          .catch(fail)
+        return prev.map((c) => (c.id === id ? { ...c, isActive } : c))
+      })
+    },
+    [fail, replaceCommitment],
+  )
+
+  const skipCommitment = useCallback(
+    (id: string) => {
+      apiFetch<{ commitment: Commitment }>(`/api/commitments/${id}/skip`, { method: "POST" })
+        .then(({ commitment }) => replaceCommitment(commitment))
+        .catch(fail)
+    },
+    [fail, replaceCommitment],
+  )
+
+  const deleteCommitment = useCallback(
+    (id: string) => {
+      setCommitments((prev) => prev.filter((c) => c.id !== id))
+      apiFetch(`/api/commitments/${id}`, { method: "DELETE" }).catch(fail)
+    },
+    [fail],
+  )
+
+  const processCommitment = useCallback(
+    (id: string) => {
+      apiFetch<{ expense: Expense; commitment: Commitment }>(`/api/commitments/${id}/process`, { method: "POST" })
+        .then(({ expense, commitment }) => {
+          upsertExpense(expense)
+          replaceCommitment(commitment)
         })
         .catch(fail)
     },
-    [fail],
+    [fail, replaceCommitment, upsertExpense],
   )
 
   const logout = useCallback(() => {
@@ -217,14 +270,17 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       expenses,
       categories,
       budgets,
-      recurring,
+      commitments,
       addExpense,
       deleteExpense,
       addCategory,
       setBudget,
-      toggleRecurring,
-      deleteRecurring,
-      processRecurring,
+      addCommitment,
+      updateCommitment,
+      toggleCommitment,
+      skipCommitment,
+      deleteCommitment,
+      processCommitment,
       logout,
     }),
     [
@@ -235,14 +291,17 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       expenses,
       categories,
       budgets,
-      recurring,
+      commitments,
       addExpense,
       deleteExpense,
       addCategory,
       setBudget,
-      toggleRecurring,
-      deleteRecurring,
-      processRecurring,
+      addCommitment,
+      updateCommitment,
+      toggleCommitment,
+      skipCommitment,
+      deleteCommitment,
+      processCommitment,
       logout,
     ],
   )

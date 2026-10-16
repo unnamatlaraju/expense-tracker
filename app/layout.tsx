@@ -7,7 +7,7 @@ const sora = Sora({ subsets: ["latin"], variable: "--font-sora" })
 
 export const metadata: Metadata = {
   title: { default: "Spendly · Expense Tracker", template: "%s · Spendly" },
-  description: "Track daily expenses, budgets and recurring payments",
+  description: "Track daily expenses, budgets, bills and subscriptions",
 }
 
 export const viewport: Viewport = {

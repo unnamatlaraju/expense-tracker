@@ -1,6 +1,7 @@
 // Spendly database schema.
-//   npx prisma db push      # apply to the database
-//   npx prisma studio       # browse the data
+//   npx prisma migrate dev --name <name>   # create + apply a migration
+//   npx prisma migrate deploy              # apply pending migrations
+//   npx prisma studio                      # browse the data
 
 generator client {
   provider = "prisma-client-js"
@@ -9,7 +10,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  // Migrations/schema pushes use the direct (session) connection.
+  // Migrations use the direct (non-pooled) connection.
   directUrl = env("DIRECT_URL")
 }
 
@@ -17,6 +18,15 @@ enum Frequency {
   weekly
   monthly
   yearly
+}
+
+/// What kind of recurring outflow this is. Purely a label — "emi" does not
+/// imply the loan maths from the loans feature.
+enum CommitmentKind {
+  bill
+  emi
+  subscription
+  other
 }
 
 model User {
@@ -29,10 +39,10 @@ model User {
   timezone     String   @default("UTC")
   createdAt    DateTime @default(now())
 
-  expenses   Expense[]
-  categories Category[]
-  budgets    Budget[]
-  recurring  RecurringExpense[]
+  expenses    Expense[]
+  categories  Category[]
+  budgets     Budget[]
+  commitments Commitment[]
 }
 
 model Expense {
@@ -52,8 +62,8 @@ model Expense {
   periodStart        DateTime?  @db.Date
   createdAt          DateTime   @default(now())
 
-  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  commitment RecurringExpense? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commitment Commitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
 
   @@unique([commitmentId, periodStart])
   @@index([userId, date])
@@ -85,21 +95,34 @@ model Budget {
   @@unique([userId, category])
 }
 
-model RecurringExpense {
-  id          String    @id @default(cuid())
-  userId      String
-  description String
-  amount      Decimal   @db.Decimal(12, 2)
-  category    String
-  frequency   Frequency
-  nextDue     DateTime  @db.Date
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
+/// A recurring outflow: a bill, EMI, subscription or anything else you pay on a
+/// schedule. `nextDue` always points at the next unpaid period.
+model Commitment {
+  id               String         @id @default(cuid())
+  userId           String
+  description      String
+  amount           Decimal        @db.Decimal(12, 2)
+  category         String
+  frequency        Frequency
+  kind             CommitmentKind @default(other)
+  nextDue          DateTime       @db.Date
+  isActive         Boolean        @default(true)
+  // Reminder preferences. Stored and editable now; delivery is a later step.
+  remindersEnabled Boolean        @default(true)
+  remindDaysBefore Int            @default(3)
+  // Optional last active day (e.g. a 12-month plan). Past it the commitment
+  // auto-pauses rather than nagging forever.
+  endDate          DateTime?      @db.Date
+  autopay          Boolean        @default(false)
+  notes            String?
+  createdAt        DateTime       @default(now())
 
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   loggedExpenses Expense[]
 
   @@index([userId])
+  // The table keeps its original name so this rename moves no data.
+  @@map("RecurringExpense")
 }
 
 // Fixed-window rate limiter. One row per key (e.g. "login:203.0.113.5").

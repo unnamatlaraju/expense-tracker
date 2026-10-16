@@ -60,6 +60,16 @@ export const loginSchema = z.object({
 
 export const frequencySchema = z.enum(["weekly", "monthly", "yearly"])
 
+export const commitmentKindSchema = z.enum(["bill", "emi", "subscription", "other"])
+
+const remindDaysBeforeSchema = z
+  .number()
+  .int("Use a whole number of days")
+  .min(0, "Cannot be negative")
+  .max(30, "Cannot be more than 30 days")
+
+const notesSchema = z.string().trim().max(500, "Notes are too long").nullable()
+
 export const newExpenseSchema = z.object({
   description: z.string().trim().min(1, "Description is required").max(200),
   amount: moneySchema,
@@ -67,6 +77,48 @@ export const newExpenseSchema = z.object({
   date: dateSchema,
   recurringFrequency: frequencySchema.optional(),
 })
+
+export const newCommitmentSchema = z
+  .object({
+    description: z.string().trim().min(1, "Description is required").max(200),
+    amount: moneySchema,
+    category: z.string().trim().min(1).max(60),
+    frequency: frequencySchema,
+    kind: commitmentKindSchema.default("other"),
+    nextDue: dateSchema,
+    remindersEnabled: z.boolean().default(true),
+    remindDaysBefore: remindDaysBeforeSchema.default(3),
+    endDate: dateSchema.nullable().optional(),
+    autopay: z.boolean().default(false),
+    notes: notesSchema.optional(),
+  })
+  .refine((value) => !value.endDate || value.endDate >= value.nextDue, {
+    message: "End date must be on or after the first due date",
+    path: ["endDate"],
+  })
+
+/**
+ * A partial update. Deliberately has no defaults: an absent field must stay
+ * absent so we only touch what the caller actually sent. Unknown keys are
+ * stripped by Zod, so this doubles as protection against mass assignment.
+ */
+export const updateCommitmentSchema = z
+  .object({
+    description: z.string().trim().min(1, "Description is required").max(200).optional(),
+    amount: moneySchema.optional(),
+    category: z.string().trim().min(1).max(60).optional(),
+    frequency: frequencySchema.optional(),
+    kind: commitmentKindSchema.optional(),
+    nextDue: dateSchema.optional(),
+    isActive: z.boolean().optional(),
+    remindersEnabled: z.boolean().optional(),
+    remindDaysBefore: remindDaysBeforeSchema.optional(),
+    endDate: dateSchema.nullable().optional(),
+    autopay: z.boolean().optional(),
+    notes: notesSchema.optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, { message: "Nothing to update" })
+
 
 export const categorySchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(60),
