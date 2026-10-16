@@ -38,8 +38,8 @@ export const exportToHTMLReport = (
   <body>
     <h1>Personal Expense Report</h1>
     <p>Generated on: ${new Date().toLocaleDateString("en-IN")}</p>
-    ${filters.startDate ? `<p>From: ${filters.startDate}</p>` : ""}
-    ${filters.endDate ? `<p>To: ${filters.endDate}</p>` : ""}
+    ${filters.startDate ? `<p>From: ${escapeHtml(filters.startDate)}</p>` : ""}
+    ${filters.endDate ? `<p>To: ${escapeHtml(filters.endDate)}</p>` : ""}
     ${filters.category ? `<p>Category: ${escapeHtml(filters.category)}</p>` : ""}
     <table>
       <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount (₹)</th></tr></thead>

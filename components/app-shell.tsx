@@ -2,22 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ShieldCheck, Wallet } from "lucide-react"
+import { CircleAlert, LogOut, ShieldCheck, Wallet, X } from "lucide-react"
 import type { ReactNode } from "react"
+import { AuroraBackground } from "@/components/aurora-background"
 import { getActiveNavIndex, NAV_ITEMS } from "@/components/nav"
+import { Button } from "@/components/ui/button"
 import { formatCurrencyWhole, monthKey, todayISO } from "@/lib/format"
 import { useExpenseStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
-
-function AuroraBackground() {
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div className="animate-aurora absolute -top-36 -left-32 size-[32rem] rounded-full bg-[#7c3aed] opacity-50 blur-[90px]" />
-      <div className="animate-aurora absolute -right-24 -bottom-40 size-[28rem] rounded-full bg-[#ec4899] opacity-40 blur-[90px] [animation-delay:-6s]" />
-      <div className="animate-aurora absolute top-1/3 left-1/2 size-[22rem] rounded-full bg-[#06b6d4] opacity-20 blur-[90px] [animation-delay:-12s]" />
-    </div>
-  )
-}
 
 function Logo() {
   return (
@@ -41,7 +33,7 @@ function LoadingSkeleton() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const { isLoaded, expenses } = useExpenseStore()
+  const { isLoaded, expenses, user, error, clearError, logout } = useExpenseStore()
   const active = getActiveNavIndex(pathname)
   const page = NAV_ITEMS[active]
 
@@ -87,19 +79,37 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="mt-1.5 text-2xl font-bold tracking-tight tabular-nums">{monthTotalLabel}</p>
             <span aria-hidden className="absolute -right-8 -bottom-10 size-28 rounded-full bg-white/20 blur-2xl" />
           </div>
-          <p className="flex items-start gap-2 px-1 text-xs leading-relaxed text-muted-foreground">
-            <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
-            Your data is saved in this browser only.
-          </p>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <ShieldCheck className="size-3.5 shrink-0" />
+              Signed in
+            </p>
+            <p className="mt-1.5 truncate text-sm font-medium">{user?.name ?? "…"}</p>
+            <p className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={logout}
+              className="mt-2 w-full justify-start text-muted-foreground"
+            >
+              <LogOut />
+              Sign out
+            </Button>
+          </div>
         </div>
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/5 bg-background/60 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/5 bg-background/60 px-4 py-3 backdrop-blur-xl lg:hidden">
         <Logo />
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-muted-foreground">
-          This month <span className="font-semibold text-foreground tabular-nums">{monthTotalLabel}</span>
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-muted-foreground">
+            This month <span className="font-semibold text-foreground tabular-nums">{monthTotalLabel}</span>
+          </span>
+          <Button variant="ghost" size="icon-sm" aria-label="Sign out" onClick={logout} className="text-muted-foreground">
+            <LogOut />
+          </Button>
+        </div>
       </header>
 
       <div className="lg:pl-72">
@@ -110,6 +120,23 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{page.title}</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground sm:text-base">{page.description}</p>
               </header>
+            )}
+            {error && (
+              <div
+                role="alert"
+                className="animate-rise-in mb-6 flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+              >
+                <CircleAlert className="size-4 shrink-0" />
+                <span className="flex-1">{error}</span>
+                <button
+                  type="button"
+                  onClick={clearError}
+                  aria-label="Dismiss"
+                  className="cursor-pointer opacity-70 transition-opacity hover:opacity-100"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             )}
             {isLoaded ? children : <LoadingSkeleton />}
           </div>

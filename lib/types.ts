@@ -1,5 +1,13 @@
 export type Frequency = "weekly" | "monthly" | "yearly"
 
+export interface AuthUser {
+  id: string
+  name: string
+  email: string
+  /** IANA timezone, kept in sync from the browser. */
+  timezone?: string
+}
+
 export interface Expense {
   id: string
   description: string

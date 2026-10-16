@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Sora } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
-import { AppShell } from "@/components/app-shell"
-import { ExpenseStoreProvider } from "@/lib/store"
 import "./globals.css"
 
 const sora = Sora({ subsets: ["latin"], variable: "--font-sora" })
@@ -25,9 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${sora.variable} font-sans`}>
-        <ExpenseStoreProvider>
-          <AppShell>{children}</AppShell>
-        </ExpenseStoreProvider>
+        {children}
         <Analytics />
       </body>
     </html>

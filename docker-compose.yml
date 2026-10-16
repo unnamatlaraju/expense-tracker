@@ -1,0 +1,25 @@
+# Local PostgreSQL for development.
+#   docker compose up -d
+#   docker compose down          # stop
+#   docker compose down -v       # stop and delete the data
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: spendly
+      POSTGRES_PASSWORD: spendly
+      POSTGRES_DB: spendly
+    ports:
+      # 5433 on the host, so we never collide with an existing Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      - spendly-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spendly -d spendly"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  spendly-db:

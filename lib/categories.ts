@@ -11,16 +11,7 @@ import {
   Zap,
 } from "lucide-react"
 
-export const DEFAULT_CATEGORIES = [
-  "Rent",
-  "Electricity Bill",
-  "Rice Packets",
-  "Tiffin/Meals",
-  "Night Curry/Dinner",
-  "Transport",
-  "Snacks",
-  "Others",
-]
+export { DEFAULT_CATEGORIES } from "@/lib/default-categories"
 
 export const PALETTE = ["#a855f7", "#ec4899", "#f97316", "#22d3ee", "#34d399", "#facc15", "#60a5fa", "#fb7185"]
 

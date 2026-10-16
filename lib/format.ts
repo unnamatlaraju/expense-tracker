@@ -10,6 +10,22 @@ export const toISODate = (date: Date) => `${date.getFullYear()}-${pad(date.getMo
 
 export const todayISO = () => toISODate(new Date())
 
+/**
+ * Today's date (`YYYY-MM-DD`) in a given IANA timezone. The server's own clock
+ * can be a day off from the user's, so anything that means "the user's today"
+ * must go through this. Reading the parts avoids depending on locale formatting.
+ */
+export const todayISOIn = (timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date())
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ""
+  return `${get("year")}-${get("month")}-${get("day")}`
+}
+
 /** Parses a `YYYY-MM-DD` string as a local date (avoids UTC off-by-one). */
 export const parseISODate = (value: string) => {
   const [y, m, d] = value.split("-").map(Number)
@@ -26,9 +42,20 @@ export const formatMonthKey = (key: string) =>
 
 export const addFrequency = (value: string, frequency: Frequency) => {
   const date = parseISODate(value)
-  if (frequency === "weekly") date.setDate(date.getDate() + 7)
+  if (frequency === "weekly") {
+    date.setDate(date.getDate() + 7)
+    return toISODate(date)
+  }
+
+  // Shift to the 1st before moving the month/year. Otherwise JavaScript rolls a
+  // non-existent day forward: Jan 31 + 1 month would become Mar 3, skipping
+  // February entirely. Afterwards we clamp back, so Jan 31 + 1 month = Feb 28/29.
+  const dayOfMonth = date.getDate()
+  date.setDate(1)
   if (frequency === "monthly") date.setMonth(date.getMonth() + 1)
   if (frequency === "yearly") date.setFullYear(date.getFullYear() + 1)
+  const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  date.setDate(Math.min(dayOfMonth, lastDayOfMonth))
   return toISODate(date)
 }
 
