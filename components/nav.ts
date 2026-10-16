@@ -9,7 +9,7 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Expenses", title: "Your expenses", description: "Add what you spend and keep an eye on it.", icon: Receipt },
+  { href: "/dashboard", label: "Expenses", title: "Your expenses", description: "Add what you spend and keep an eye on it.", icon: Receipt },
   { href: "/summary", label: "Summary", title: "Spending summary", description: "See where your money goes.", icon: ChartPie },
   { href: "/budget", label: "Budget", title: "Budgets", description: "Set a limit for each category and stay on track.", icon: Target },
   { href: "/commitments", label: "Commitments", title: "Commitments", description: "Bills, EMIs and subscriptions you pay on a schedule.", icon: CalendarClock },
@@ -17,4 +17,4 @@ export const NAV_ITEMS: NavItem[] = [
 ]
 
 export const getActiveNavIndex = (pathname: string) =>
-  NAV_ITEMS.findIndex((item) => (item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)))
+  NAV_ITEMS.findIndex((item) => pathname.startsWith(item.href))

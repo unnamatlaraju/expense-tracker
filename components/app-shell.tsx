@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 rounded-xl">
+    <Link href="/dashboard" className="flex items-center gap-2.5 rounded-xl">
       <span className="bg-aurora glow grid size-9 place-items-center rounded-xl">
         <Wallet className="size-5 text-white" />
       </span>

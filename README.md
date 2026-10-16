@@ -7,8 +7,9 @@ The UI uses a dark "Aurora Glass" theme: translucent glass cards, purple → pin
 
 ## Features
 
+- **Landing page** (`/`): a public marketing page — hero, feature grid, commitments spotlight, how-it-works, FAQ and calls to action. Signed-in users are bounced straight to the dashboard, so it is only ever seen by visitors.
 - **Accounts**: email/password sign-up and sign-in. Sessions are signed JWTs in an httpOnly cookie; passwords are hashed with bcrypt.
-- **Expenses** (`/`): add expenses with a description, amount (₹), category and date. You can mark an expense as recurring and add your own categories.
+- **Expenses** (`/dashboard`): add expenses with a description, amount (₹), category and date. You can mark an expense as recurring and add your own categories.
 - **Add by voice**: tap the mic on the Expenses page and say something like "I spent 1000 on rent" or "200 for snacks yesterday". The app picks out the amount, category, date and description, and shows a preview you confirm before anything is saved. Speech-to-text uses the browser's built-in Web Speech API (Chrome, Edge, Safari; not Firefox), and the glow is [`voice-glow`](https://libraries.dev/voice.html). The mic needs `https` or `localhost`. You can type the sentence instead.
 - **Summary** (`/summary`): total and this-month spending, a pie chart by category and a monthly bar chart.
 - **Budget** (`/budget`): set a spending limit per category and track progress against it.
@@ -93,6 +94,7 @@ The app is set up for **Vercel** + **Supabase**. `vercel.json` pins the function
    | `DATABASE_URL` | The **pooled** Supabase URL (port `6543`, `?pgbouncer=true`). Serverless functions open many short-lived connections, so the pooler is not optional |
    | `DIRECT_URL` | The Supabase **session** pooler URL (port `5432`). IPv4-friendly, and what migrations connect through |
    | `AUTH_SECRET` | A *fresh* secret for production. Don't reuse the dev one — it signs session cookies, so changing it simply signs everyone out |
+   | `NEXT_PUBLIC_SITE_URL` | *Optional.* Absolute origin used for canonical links and the social-preview image. Only set it on a custom domain — Vercel's production domain is picked up automatically otherwise |
 
 2. **Import the repository** at [vercel.com/new](https://vercel.com/new). The detected defaults are already correct: `next build`, with the `postinstall` script running `prisma generate`.
 
@@ -124,8 +126,11 @@ The app is set up for **Vercel** + **Supabase**. `vercel.json` pins the function
 
 | Path | What's in it |
 | --- | --- |
-| `app/(app)/` | Authenticated pages: `page.tsx` (expenses), `summary/`, `budget/`, `commitments/`, `reports/` |
+| `app/(marketing)/` | The public landing page at `/` |
+| `app/(app)/` | Authenticated pages: `dashboard/` (expenses), `summary/`, `budget/`, `commitments/`, `reports/` |
 | `app/(auth)/` | Public pages: `login/`, `signup/` |
+| `app/icon.svg`, `app/opengraph-image.tsx` | Favicon and the social-preview image for shared links |
+| `components/landing/` | Landing-page pieces (`marketing-nav.tsx`, `app-preview.tsx`, `reveal.tsx`) |
 | `app/api/` | REST API route handlers (see below) |
 | `components/app-shell.tsx` | Sidebar, mobile top bar, bottom tab bar and account menu |
 | `components/views/` | The content of each page |
@@ -139,7 +144,8 @@ The app is set up for **Vercel** + **Supabase**. `vercel.json` pins the function
 | `lib/*.test.ts` | Vitest unit tests (`vitest.config.mts`) |
 | `prisma/schema.prisma` | Database schema |
 | `prisma/migrations/` | Versioned SQL migrations |
-| `middleware.ts` | Redirects unauthenticated visitors to `/login` |
+| `middleware.ts` | Sends unauthenticated visitors to `/login` (remembering where they were headed) and signed-in users from `/`, `/login` or `/signup` to `/dashboard` |
+| `lib/navigation.ts` | `APP_HOME` and `safeNextPath`, which rejects off-site `?next=` values |
 | `lib/voice-parse.ts` | Turns a spoken sentence into amount, category, date and description |
 | `components/voice-add.tsx` | The voice card: mic button, glow, and confirm step |
 
