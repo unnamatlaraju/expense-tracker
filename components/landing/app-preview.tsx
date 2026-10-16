@@ -1,4 +1,4 @@
-import { CalendarClock, TrendingDown } from "lucide-react"
+import { TrendingDown } from "lucide-react"
 import { CategoryIcon } from "@/components/category-icon"
 import { formatCurrency, formatCurrencyWhole } from "@/lib/format"
 
@@ -15,11 +15,6 @@ const ROWS = [
   { category: "Rent", description: "House rent", date: "2 Oct", amount: 12000 },
   { category: "Tiffin/Meals", description: "Lunch at the canteen", date: "Today", amount: 180 },
   { category: "Transport", description: "Auto to college", date: "Today", amount: 80 },
-]
-
-const UPCOMING = [
-  { label: "House rent", meta: "Due in 3 days", status: "soon" as const },
-  { label: "Netflix", meta: "2 days overdue", status: "late" as const },
 ]
 
 export function AppPreview() {
@@ -70,34 +65,6 @@ export function AppPreview() {
                 </p>
               </div>
               <p className="text-sm font-semibold tabular-nums">{formatCurrency(row.amount)}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="glass absolute -bottom-8 -left-5 hidden w-64 rounded-2xl p-3.5 sm:block lg:-left-12">
-        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-          <CalendarClock className="size-3.5" />
-          Commitments
-        </p>
-        <div className="mt-2.5 space-y-2">
-          {UPCOMING.map((item) => (
-            <div key={item.label} className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-medium">{item.label}</p>
-                <p
-                  className={
-                    item.status === "late"
-                      ? "text-[10px] font-semibold text-destructive"
-                      : "text-[10px] font-semibold text-amber-300"
-                  }
-                >
-                  {item.meta}
-                </p>
-              </div>
-              <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                {item.status === "late" ? "Overdue" : "Due soon"}
-              </span>
             </div>
           ))}
         </div>
