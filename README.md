@@ -82,6 +82,28 @@ Requires Node.js 20 or later and a PostgreSQL database.
 
 The schema is versioned in `prisma/migrations/`: `0_init` is the original baseline and each later migration is a small, reviewable step. `npm run db:deploy` applies pending migrations and is what a deploy should run — it never resets data. `npm run db:push` (schema push without history) is still there for quick local experiments, but migrations are the source of truth.
 
+## Deploying
+
+The app is set up for **Vercel** + **Supabase**. `vercel.json` pins the functions to `bom1` (Mumbai) so they talk to a Supabase project in `ap-south-1` without crossing an ocean — a single page load makes several queries, so that latency is very visible.
+
+1. **Set the environment variables** in the Vercel project (Settings → Environment Variables, for Production and Preview):
+
+   | Variable | Value |
+   | --- | --- |
+   | `DATABASE_URL` | The **pooled** Supabase URL (port `6543`, `?pgbouncer=true`). Serverless functions open many short-lived connections, so the pooler is not optional |
+   | `DIRECT_URL` | The Supabase **session** pooler URL (port `5432`). IPv4-friendly, and what migrations connect through |
+   | `AUTH_SECRET` | A *fresh* secret for production. Don't reuse the dev one — it signs session cookies, so changing it simply signs everyone out |
+
+2. **Import the repository** at [vercel.com/new](https://vercel.com/new). The detected defaults are already correct: `next build`, with the `postinstall` script running `prisma generate`.
+
+3. **Apply migrations yourself**, when you deploy a schema change:
+
+   ```bash
+   npm run db:deploy
+   ```
+
+   Migrations are deliberately *not* part of the build. That keeps the build free of any database dependency — it succeeds even with unreachable credentials, so a deploy can't fail over a network blip — and stops two builds from racing to apply the same SQL. The trade-off is ordering: apply the migration before the code that needs it.
+
 ## Scripts
 
 | Command | Description |
