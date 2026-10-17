@@ -1,8 +1,9 @@
 "use client"
 
-import { Check, CircleAlert, Plus, Receipt, Repeat, Sparkles } from "lucide-react"
+import { Check, CircleAlert, Plus, Receipt, Repeat, Search, SearchX, Sparkles } from "lucide-react"
 import { type FormEvent, useMemo, useRef, useState } from "react"
 import { CategoryIcon } from "@/components/category-icon"
+import { EditExpenseDialog } from "@/components/edit-expense-dialog"
 import { EmptyState } from "@/components/empty-state"
 import { ExpenseRow } from "@/components/expense-row"
 import { type VoiceDraft, VoiceAdd } from "@/components/voice-add"
@@ -11,6 +12,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getCategoryMeta } from "@/lib/categories"
 import { formatCurrency, todayISO } from "@/lib/format"
 import { useExpenseStore } from "@/lib/store"
@@ -18,6 +20,14 @@ import type { Frequency } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 const FREQUENCIES: Frequency[] = ["weekly", "monthly", "yearly"]
+
+const SORTS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "highest", label: "Highest amount" },
+] as const
+
+type Sort = (typeof SORTS)[number]["value"]
 
 export function TrackerView() {
   const { expenses, categories, addExpense, deleteExpense, addCategory } = useExpenseStore()
@@ -32,13 +42,33 @@ export function TrackerView() {
   const [justAdded, setJustAdded] = useState(false)
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [newCategory, setNewCategory] = useState("")
+  const [query, setQuery] = useState("")
+  const [sort, setSort] = useState<Sort>("newest")
+  /** The row being edited, or null when no editor is open. */
+  const [editingId, setEditingId] = useState<string | null>(null)
   // A ref is the guard (synchronous, so a second submit in the same tick can't
   // slip through) and the state drives the button's disabled look.
   const submittingRef = useRef(false)
   const [submitting, setSubmitting] = useState(false)
 
-  const newestFirst = useMemo(() => [...expenses].reverse(), [expenses])
   const total = useMemo(() => expenses.reduce((sum, e) => sum + e.amount, 0), [expenses])
+
+  // `expenses` arrives oldest-first from the API. Searching matches the
+  // description *or* the category so "food" finds the whole category too.
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    const matches = needle
+      ? expenses.filter(
+          (e) => e.description.toLowerCase().includes(needle) || e.category.toLowerCase().includes(needle),
+        )
+      : [...expenses]
+
+    if (sort === "highest") return matches.sort((a, b) => b.amount - a.amount)
+    if (sort === "newest") return matches.reverse()
+    return matches
+  }, [expenses, query, sort])
+
+  const searching = query.trim().length > 0
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -153,7 +183,7 @@ export function TrackerView() {
                         "inline-flex cursor-pointer items-center gap-2 rounded-xl border py-1.5 pr-3 pl-1.5 text-xs font-medium transition-all duration-300 ease-out-expo outline-none hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-primary/30",
                         selected
                           ? "border-transparent bg-white/10 text-foreground"
-                          : "border-white/10 bg-white/[0.03] text-muted-foreground hover:border-white/20 hover:text-foreground",
+                          : "border-white/10 bg-white/[0.03] text-foreground/90 hover:border-white/20 hover:text-foreground",
                       )}
                       style={selected ? { boxShadow: `inset 0 0 0 1.5px ${color}, 0 8px 20px -10px ${color}` } : undefined}
                     >
@@ -166,7 +196,7 @@ export function TrackerView() {
                   type="button"
                   aria-expanded={showNewCategory}
                   onClick={() => setShowNewCategory((v) => !v)}
-                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-dashed border-white/20 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors duration-300 outline-none hover:border-white/40 hover:text-foreground focus-visible:ring-4 focus-visible:ring-primary/30"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-dashed border-white/20 px-3 py-1.5 text-xs font-medium text-foreground/90 transition-colors duration-300 outline-none hover:border-white/40 hover:text-foreground focus-visible:ring-4 focus-visible:ring-primary/30"
                 >
                   <Plus className="size-3.5" />
                   New
@@ -218,7 +248,7 @@ export function TrackerView() {
                       onClick={() => setFrequency(f)}
                       className={cn(
                         "cursor-pointer rounded-lg py-1.5 text-xs font-medium capitalize transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-                        f === frequency ? "bg-aurora glow text-white" : "text-muted-foreground hover:text-foreground",
+                        f === frequency ? "bg-aurora glow text-white" : "text-foreground/90 hover:text-foreground",
                       )}
                     >
                       {f}
@@ -255,29 +285,77 @@ export function TrackerView() {
         <CardHeader>
           <CardTitle>Recent expenses</CardTitle>
           <CardDescription>
-            {expenses.length} {expenses.length === 1 ? "entry" : "entries"}
+            {searching
+              ? `${visible.length} of ${expenses.length} ${expenses.length === 1 ? "entry" : "entries"}`
+              : `${expenses.length} ${expenses.length === 1 ? "entry" : "entries"}`}
           </CardDescription>
           <CardAction className="text-right">
             <p className="text-xs text-muted-foreground">Total</p>
             <p className="text-aurora text-xl font-bold tabular-nums">{formatCurrency(total)}</p>
           </CardAction>
         </CardHeader>
+
+        {expenses.length > 0 && (
+          <div className="flex gap-2 px-6">
+            <div className="relative flex-1">
+              <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search description or category"
+                aria-label="Search expenses"
+                className="pl-9"
+              />
+            </div>
+            <Select value={sort} onValueChange={(v) => setSort(v as Sort)}>
+              <SelectTrigger aria-label="Sort expenses" className="w-40 shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORTS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <CardContent className="px-3 sm:px-4">
-          {newestFirst.length === 0 ? (
+          {expenses.length === 0 ? (
             <EmptyState
               icon={Receipt}
               title="No expenses yet"
               description="Add your first expense with the form and it will show up here."
             />
+          ) : visible.length === 0 ? (
+            <EmptyState
+              icon={SearchX}
+              title="No matches"
+              description={`Nothing matches “${query.trim()}”. Try a different word, or clear the search.`}
+            />
           ) : (
             <ul className="max-h-[36rem] space-y-1 overflow-y-auto pr-1">
-              {newestFirst.map((e, i) => (
-                <ExpenseRow key={e.id} expense={e} index={i} onDelete={() => deleteExpense(e.id)} />
+              {visible.map((e, i) => (
+                <ExpenseRow
+                  key={e.id}
+                  expense={e}
+                  index={i}
+                  onEdit={() => setEditingId(e.id)}
+                  onDelete={() => deleteExpense(e.id)}
+                />
               ))}
             </ul>
           )}
         </CardContent>
       </Card>
+
+      {/* Mounted with a key so switching rows re-seeds the form fields. */}
+      {editingId && (
+        <EditExpenseDialog key={editingId} expenseId={editingId} onClose={() => setEditingId(null)} />
+      )}
     </div>
   )
 }

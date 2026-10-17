@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Sora } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { ServiceWorkerRegistrar } from "@/components/service-worker"
 import "./globals.css"
 
 const sora = Sora({ subsets: ["latin"], variable: "--font-sora" })
@@ -60,6 +61,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${sora.variable} font-sans`}>
         {children}
+        <ServiceWorkerRegistrar />
         <Analytics />
       </body>
     </html>

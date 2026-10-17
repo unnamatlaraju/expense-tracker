@@ -26,6 +26,40 @@ export interface Budget {
   limit: number
 }
 
+/**
+ * A partial edit of an existing expense. Every field is optional so the caller
+ * only sends what changed; `recurringFrequency: null` turns a repeating
+ * expense back into a one-off.
+ */
+export interface ExpensePatch {
+  description?: string
+  amount?: number
+  category?: string
+  date?: string
+  recurringFrequency?: Frequency | null
+}
+
+/** A loan repaid in equal monthly instalments. Only the terms are stored. */
+export interface Loan {
+  id: string
+  name: string
+  lender?: string
+  /** Amount borrowed. */
+  principal: number
+  /** Nominal annual interest rate as a percentage, e.g. 9.5 for 9.5% p.a. */
+  annualRate: number
+  /** Number of monthly instalments. */
+  tenureMonths: number
+  /** Due date of the first instalment (YYYY-MM-DD). */
+  firstDue: string
+  notes?: string
+}
+
+export type NewLoan = Omit<Loan, "id">
+
+/** A partial edit of a loan; absent keys are left alone. */
+export type LoanPatch = Partial<NewLoan>
+
 /** A recurring outflow: a bill, EMI, subscription or anything else on a schedule. */
 export interface Commitment {
   id: string

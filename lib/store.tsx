@@ -9,8 +9,12 @@ import type {
   Commitment,
   CommitmentPatch,
   Expense,
+  ExpensePatch,
+  Loan,
+  LoanPatch,
   NewCommitment,
   NewExpense,
+  NewLoan,
 } from "@/lib/types"
 
 /**
@@ -25,6 +29,7 @@ interface Bootstrap {
   categories: string[]
   budgets: Budget[]
   commitments: Commitment[]
+  loans: Loan[]
 }
 
 interface ExpenseStore {
@@ -36,8 +41,11 @@ interface ExpenseStore {
   categories: string[]
   budgets: Budget[]
   commitments: Commitment[]
+  loans: Loan[]
   addExpense: (input: NewExpense) => Promise<void>
   deleteExpense: (id: string) => void
+  /** Throws on failure so the edit dialog can show the message inline. */
+  updateExpense: (id: string, patch: ExpensePatch) => Promise<void>
   addCategory: (name: string) => boolean
   setBudget: (category: string, limit: number) => void
   addCommitment: (input: NewCommitment) => Promise<void>
@@ -49,6 +57,15 @@ interface ExpenseStore {
   /** Ids of commitments with a mutation in flight, so their buttons can disable. */
   busyCommitments: string[]
   logout: () => void
+  /**
+   * Deletes the account after re-confirming the password, then returns to
+   * `/login`. Throws on a wrong password so the dialog can show the message.
+   */
+  deleteAccount: (password: string) => Promise<void>
+  /** Throws on failure so the loan form can show the message inline. */
+  addLoan: (input: NewLoan) => Promise<void>
+  updateLoan: (id: string, patch: LoanPatch) => Promise<void>
+  deleteLoan: (id: string) => void
 }
 
 const StoreContext = createContext<ExpenseStore | null>(null)
@@ -61,6 +78,7 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES)
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [commitments, setCommitments] = useState<Commitment[]>([])
+  const [loans, setLoans] = useState<Loan[]>([])
   const loadedRef = useRef(false)
 
   // Commitments with a mutation in flight. The ref is the guard: it is read and
@@ -93,6 +111,7 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
     setCategories(data.categories.length > 0 ? data.categories : DEFAULT_CATEGORIES)
     setBudgets(data.budgets)
     setCommitments(data.commitments)
+    setLoans(data.loans ?? [])
   }, [])
 
   const refresh = useCallback(() => {
@@ -172,6 +191,22 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       apiFetch(`/api/expenses/${id}`, { method: "DELETE" }).catch(fail)
     },
     [fail],
+  )
+
+  /**
+   * Saves an edit and replaces the row with the server's version. Unlike the
+   * other mutations this reports failures by rejecting, so the edit dialog can
+   * show the message where the user is looking instead of a page-level banner.
+   */
+  const updateExpense = useCallback(
+    (id: string, patch: ExpensePatch) =>
+      apiFetch<{ expense: Expense }>(`/api/expenses/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }).then(({ expense }) => {
+        setExpenses((prev) => prev.map((e) => (e.id === expense.id ? expense : e)))
+      }),
+    [],
   )
 
   const addCategory = useCallback(
@@ -296,6 +331,42 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       })
   }, [])
 
+  /**
+   * Failures deliberately bypass `fail()`: a mistyped password should surface
+   * inside the confirmation dialog, not replace the page with an error banner
+   * and re-sync the store.
+   */
+  const deleteAccount = useCallback(async (password: string) => {
+    await apiFetch("/api/auth/me", { method: "DELETE", body: JSON.stringify({ password }) })
+    window.location.href = "/login"
+  }, [])
+
+  // Like `updateExpense`, the loan mutations reject on failure so the form can
+  // show the message where the user is looking.
+  const addLoan = useCallback(async (input: NewLoan) => {
+    const { loan } = await apiFetch<{ loan: Loan }>("/api/loans", {
+      method: "POST",
+      body: JSON.stringify(input),
+    })
+    setLoans((prev) => [...prev, loan])
+  }, [])
+
+  const updateLoan = useCallback(async (id: string, patch: LoanPatch) => {
+    const { loan } = await apiFetch<{ loan: Loan }>(`/api/loans/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    })
+    setLoans((prev) => prev.map((l) => (l.id === loan.id ? loan : l)))
+  }, [])
+
+  const deleteLoan = useCallback(
+    (id: string) => {
+      setLoans((prev) => prev.filter((l) => l.id !== id))
+      apiFetch(`/api/loans/${id}`, { method: "DELETE" }).catch(fail)
+    },
+    [fail],
+  )
+
   const clearError = useCallback(() => setError(""), [])
 
   const value = useMemo(
@@ -308,8 +379,10 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       categories,
       budgets,
       commitments,
+      loans,
       addExpense,
       deleteExpense,
+      updateExpense,
       addCategory,
       setBudget,
       addCommitment,
@@ -320,6 +393,10 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       processCommitment,
       busyCommitments,
       logout,
+      deleteAccount,
+      addLoan,
+      updateLoan,
+      deleteLoan,
     }),
     [
       isLoaded,
@@ -330,8 +407,10 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       categories,
       budgets,
       commitments,
+      loans,
       addExpense,
       deleteExpense,
+      updateExpense,
       addCategory,
       setBudget,
       addCommitment,
@@ -342,6 +421,10 @@ export function ExpenseStoreProvider({ children }: { children: ReactNode }) {
       processCommitment,
       busyCommitments,
       logout,
+      deleteAccount,
+      addLoan,
+      updateLoan,
+      deleteLoan,
     ],
   )
 

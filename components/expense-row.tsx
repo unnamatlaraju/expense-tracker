@@ -1,4 +1,4 @@
-import { Repeat, Trash2 } from "lucide-react"
+import { Pencil, Repeat, Trash2 } from "lucide-react"
 import { CategoryIcon } from "@/components/category-icon"
 import { Button } from "@/components/ui/button"
 import { formatCurrency, formatDate } from "@/lib/format"
@@ -6,10 +6,12 @@ import type { Expense } from "@/lib/types"
 
 export function ExpenseRow({
   expense,
+  onEdit,
   onDelete,
   index = 0,
 }: {
   expense: Expense
+  onEdit?: () => void
   onDelete?: () => void
   index?: number
 }) {
@@ -21,7 +23,18 @@ export function ExpenseRow({
       <CategoryIcon category={expense.category} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="truncate font-medium">{expense.description}</p>
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label={`Edit ${expense.description}`}
+              className="cursor-pointer truncate text-left font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-4 focus-visible:ring-primary/30"
+            >
+              {expense.description}
+            </button>
+          ) : (
+            <p className="truncate font-medium">{expense.description}</p>
+          )}
           {expense.isRecurring && (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-[#d8b4fe] capitalize">
               <Repeat className="size-3" />
@@ -34,6 +47,17 @@ export function ExpenseRow({
         </p>
       </div>
       <p className="shrink-0 font-semibold tabular-nums">{formatCurrency(expense.amount)}</p>
+      {onEdit && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Edit ${expense.description}`}
+          onClick={onEdit}
+          className="text-muted-foreground focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+        >
+          <Pencil />
+        </Button>
+      )}
       {onDelete && (
         <Button
           variant="ghost"

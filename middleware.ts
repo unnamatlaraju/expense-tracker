@@ -19,11 +19,15 @@ const PUBLIC_PAGES = ["/", "/login", "/signup"]
 const AUTH_PAGES = ["/login", "/signup"]
 
 /**
- * Next generates the favicon and the social-preview image as routes. Crawlers
- * that fetch a shared link have no session cookie, so these must stay public —
- * otherwise they would be handed the login page's HTML instead of the image.
+ * Next generates the favicon and the social-preview image as routes, and the
+ * installable web app needs its manifest icons. Crawlers and browsers fetching
+ * these have no session cookie, so they must stay public — otherwise they would
+ * be handed the login page's HTML instead of the image.
+ *
+ * (`/manifest.webmanifest` and `/sw.js` contain a dot, so the matcher already
+ * skips them.)
  */
-const METADATA_ROUTES = /^\/(opengraph-image|twitter-image|icon|apple-icon)(\/|$)/
+const METADATA_ROUTES = /^\/(opengraph-image|twitter-image|icon|apple-icon|icons)(\/|$)/
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

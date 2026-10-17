@@ -187,7 +187,7 @@ export function CommitmentsView() {
                             {formatCurrency(commitment.amount)} · {commitment.frequency} · next{" "}
                             {formatDate(commitment.nextDue)}
                           </p>
-                          {commitment.notes && <p className="mt-0.5 truncate text-xs text-muted-foreground/80">{commitment.notes}</p>}
+                          {commitment.notes && <p className="mt-0.5 truncate text-xs text-muted-foreground">{commitment.notes}</p>}
                         </div>
 
                         <span

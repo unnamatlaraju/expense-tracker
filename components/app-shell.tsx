@@ -2,11 +2,11 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { CircleAlert, LogOut, ShieldCheck, Wallet, X } from "lucide-react"
+import { CircleAlert, Wallet, X } from "lucide-react"
 import type { ReactNode } from "react"
+import { DesktopAccountCard, MobileAccountMenu } from "@/components/account-menu"
 import { AuroraBackground } from "@/components/aurora-background"
 import { getActiveNavIndex, NAV_ITEMS } from "@/components/nav"
-import { Button } from "@/components/ui/button"
 import { formatCurrencyWhole, monthKey, todayISO } from "@/lib/format"
 import { useExpenseStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -24,7 +24,9 @@ function Logo() {
 
 function LoadingSkeleton() {
   return (
-    <div className="grid gap-4 lg:grid-cols-2" aria-busy="true" aria-label="Loading">
+    // `role="status"` is what makes `aria-label` legal here (a bare div may not
+    // carry one), and it lets a screen reader announce that content is loading.
+    <div className="grid gap-4 lg:grid-cols-2" role="status" aria-busy="true" aria-label="Loading">
       <div className="skeleton h-80 rounded-3xl" />
       <div className="skeleton h-80 rounded-3xl" />
     </div>
@@ -33,7 +35,7 @@ function LoadingSkeleton() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const { isLoaded, expenses, user, error, clearError, logout } = useExpenseStore()
+  const { isLoaded, expenses, error, clearError } = useExpenseStore()
   const active = getActiveNavIndex(pathname)
   const page = NAV_ITEMS[active]
 
@@ -79,23 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="mt-1.5 text-2xl font-bold tracking-tight tabular-nums">{monthTotalLabel}</p>
             <span aria-hidden className="absolute -right-8 -bottom-10 size-28 rounded-full bg-white/20 blur-2xl" />
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ShieldCheck className="size-3.5 shrink-0" />
-              Signed in
-            </p>
-            <p className="mt-1.5 truncate text-sm font-medium">{user?.name ?? "…"}</p>
-            <p className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={logout}
-              className="mt-2 w-full justify-start text-muted-foreground"
-            >
-              <LogOut />
-              Sign out
-            </Button>
-          </div>
+          <DesktopAccountCard />
         </div>
       </aside>
 
@@ -106,9 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-muted-foreground">
             This month <span className="font-semibold text-foreground tabular-nums">{monthTotalLabel}</span>
           </span>
-          <Button variant="ghost" size="icon-sm" aria-label="Sign out" onClick={logout} className="text-muted-foreground">
-            <LogOut />
-          </Button>
+          <MobileAccountMenu />
         </div>
       </header>
 
@@ -148,12 +132,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-label="Main"
         className="glass fixed inset-x-3 bottom-3 z-30 rounded-2xl bg-[#14142e]/85! p-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] lg:hidden"
       >
-        <div className="relative grid grid-cols-5">
+        <div
+          className="relative grid"
+          style={{ gridTemplateColumns: `repeat(${NAV_ITEMS.length}, minmax(0, 1fr))` }}
+        >
           {active >= 0 && (
             <span
               aria-hidden
-              className="absolute inset-y-0 left-0 w-1/5 transition-transform duration-500 ease-out-expo"
-              style={{ transform: `translateX(${active * 100}%)` }}
+              className="absolute inset-y-0 left-0 transition-transform duration-500 ease-out-expo"
+              style={{ width: `${100 / NAV_ITEMS.length}%`, transform: `translateX(${active * 100}%)` }}
             >
               <span className="block size-full rounded-xl bg-primary/20 ring-1 ring-primary/40 ring-inset" />
             </span>
@@ -164,12 +151,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               href={item.href}
               aria-current={i === active ? "page" : undefined}
               className={cn(
-                "relative flex flex-col items-center gap-1 rounded-xl py-2 text-[10px] font-medium text-muted-foreground transition-colors duration-300",
+                "relative flex flex-col items-center gap-1 rounded-xl px-0.5 py-2 text-[10px] font-medium text-muted-foreground transition-colors duration-300",
                 i === active && "text-foreground",
               )}
             >
               <item.icon className={cn("size-5 transition-transform duration-500 ease-out-expo", i === active && "-translate-y-0.5 text-[#d8b4fe]")} />
-              {item.label}
+              <span className="truncate">{item.short ?? item.label}</span>
             </Link>
           ))}
         </div>

@@ -2,8 +2,9 @@ import type {
   Budget as PrismaBudget,
   Commitment as PrismaCommitment,
   Expense as PrismaExpense,
+  Loan as PrismaLoan,
 } from "@prisma/client"
-import type { Budget, Commitment, CommitmentKind, Expense, Frequency } from "@/lib/types"
+import type { Budget, Commitment, CommitmentKind, Expense, Frequency, Loan } from "@/lib/types"
 
 /**
  * Prisma returns `Decimal` (money) and `Date` (date-only) objects. The UI works
@@ -26,6 +27,17 @@ export const serializeExpense = (e: PrismaExpense): Expense => ({
 export const serializeBudget = (b: PrismaBudget): Budget => ({
   category: b.category,
   limit: Number(b.limit),
+})
+
+export const serializeLoan = (l: PrismaLoan): Loan => ({
+  id: l.id,
+  name: l.name,
+  lender: l.lender ?? undefined,
+  principal: Number(l.principal),
+  annualRate: Number(l.annualRate),
+  tenureMonths: l.tenureMonths,
+  firstDue: toISODate(l.firstDue),
+  notes: l.notes ?? undefined,
 })
 
 export const serializeCommitment = (c: PrismaCommitment): Commitment => ({

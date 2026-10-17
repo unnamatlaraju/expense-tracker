@@ -78,6 +78,56 @@ export const newExpenseSchema = z.object({
   recurringFrequency: frequencySchema.optional(),
 })
 
+/**
+ * A nominal annual interest rate, as a percentage. Capped at 100% — anything
+ * beyond that is a typo (or a payday loan nobody should be modelling here).
+ */
+const rateSchema = z
+  .number()
+  .min(0, "Cannot be negative")
+  .max(100, "Enter a rate of 100% or less")
+  .transform(roundMoney)
+
+const tenureMonthsSchema = z
+  .number()
+  .int("Use whole months")
+  .min(1, "At least 1 month")
+  .max(600, "That is over 50 years")
+
+export const newLoanSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+  lender: z.string().trim().max(120).nullable().optional(),
+  principal: moneySchema,
+  annualRate: rateSchema,
+  tenureMonths: tenureMonthsSchema,
+  firstDue: dateSchema,
+  notes: notesSchema.optional(),
+})
+
+/** Partial update: absent keys stay absent so only real changes are written. */
+export const updateLoanSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(120).optional(),
+    lender: z.string().trim().max(120).nullable().optional(),
+    principal: moneySchema.optional(),
+    annualRate: rateSchema.optional(),
+    tenureMonths: tenureMonthsSchema.optional(),
+    firstDue: dateSchema.optional(),
+    notes: notesSchema.optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, { message: "Nothing to update" })
+
+export const updateExpenseSchema = z
+  .object({
+    description: z.string().trim().min(1, "Description is required").max(200).optional(),
+    amount: moneySchema.optional(),
+    category: z.string().trim().min(1).max(60).optional(),
+    date: dateSchema.optional(),
+    // `null` turns a repeating expense back into a one-off.
+    recurringFrequency: frequencySchema.nullable().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, { message: "Nothing to update" })
+
 export const newCommitmentSchema = z
   .object({
     description: z.string().trim().min(1, "Description is required").max(200),
@@ -146,6 +196,15 @@ export const timezoneSchema = z
   .refine(isKnownTimezone, "Unknown timezone")
 
 export const updateMeSchema = z.object({ timezone: timezoneSchema })
+
+/**
+ * Deleting an account is irreversible, so it is re-authenticated: the caller
+ * must prove they still know the password rather than relying on an unlocked
+ * laptop's session alone.
+ */
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1, "Enter your password"),
+})
 
 /** Formats a ZodError as `{ field: message }` for the client. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {

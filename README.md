@@ -1,6 +1,6 @@
 # Spendly · Personal Expense Tracker
 
-A full-stack Next.js app for tracking daily expenses, category budgets and recurring commitments — bills, EMIs and subscriptions.
+A full-stack Next.js app for tracking daily expenses, category budgets, recurring commitments (bills, EMIs and subscriptions) and the loans behind them. It is also an **installable PWA**.
 
 Data lives in **PostgreSQL** behind a REST API, and every request is scoped to the signed-in user.
 The UI uses a dark "Aurora Glass" theme: translucent glass cards, purple → pink → orange gradients and animated background glows. Desktop has a sidebar; phones get a bottom tab bar.
@@ -8,8 +8,10 @@ The UI uses a dark "Aurora Glass" theme: translucent glass cards, purple → pin
 ## Features
 
 - **Landing page** (`/`): a public marketing page — hero, feature grid, commitments spotlight, how-it-works, FAQ and calls to action. Signed-in users are bounced straight to the dashboard, so it is only ever seen by visitors.
-- **Accounts**: email/password sign-up and sign-in. Sessions are signed JWTs in an httpOnly cookie; passwords are hashed with bcrypt.
-- **Expenses** (`/dashboard`): add expenses with a description, amount (₹), category and date. You can mark an expense as recurring and add your own categories.
+- **Accounts**: email/password sign-up and sign-in. Sessions are signed JWTs in an httpOnly cookie; passwords are hashed with bcrypt. You can **delete your account** from the account menu — confirmed by re-entering your password, and rate limited — which removes every expense, budget, commitment and loan with it.
+- **Expenses** (`/dashboard`): add expenses with a description, amount (₹), category and date. **Search** by description or category, **sort** by date or amount, and **edit** any entry in place without re-adding it. You can mark an expense as recurring and add your own categories.
+- **Loans** (`/loans`): enter the amount, rate and tenure and the page works out the EMI, the total interest over the whole term, the payoff date and the complete amortisation schedule — instalment by instalment, split into interest and principal, ending at a zero balance. It also answers the question lenders don't volunteer: put in an extra monthly payment and it shows how many instalments earlier you'd finish and how much interest you'd save. The schedule exports to CSV.
+- **Installable PWA**: add Spendly to a phone's home screen from the browser. It opens fullscreen with no browser chrome, and its icons are generated at build time (no binary assets in the repo).
 - **Add by voice**: tap the mic on the Expenses page and say something like "I spent 1000 on rent" or "200 for snacks yesterday". The app picks out the amount, category, date and description, and shows a preview you confirm before anything is saved. Speech-to-text uses the browser's built-in Web Speech API (Chrome, Edge, Safari; not Firefox), and the glow is [`voice-glow`](https://libraries.dev/voice.html). The mic needs `https` or `localhost`. You can type the sentence instead.
 - **Summary** (`/summary`): total and this-month spending, a pie chart by category and a monthly bar chart.
 - **Budget** (`/budget`): set a spending limit per category and track progress against it.
@@ -26,6 +28,8 @@ A few things that are easy to get wrong are handled explicitly:
 - **Category names** are unique per user case-insensitively, enforced by a database index rather than an application check (which has a race window).
 - **Every query is scoped to the signed-in user**, so one account cannot read or mutate another's data.
 - **Partial updates** only write the fields a request actually sends: the Zod schemas strip unknown keys, so a client can't smuggle a `userId` or `id` into a `PATCH` and move a row into another account.
+- **Destructive actions need re-authentication.** Deleting an account requires the password again and is rate limited, so a stolen session cookie alone can't erase someone's data. Failures are reported inside the confirmation dialog rather than the page-level banner.
+- **The service worker caches exactly one thing**: Next's content-hashed build assets under `/_next/static/`. HTML documents and API responses are never cached, because a stale cached response could show one user another user's financial data.
 - **Timezones**: the server computes a user's "today" from their stored IANA timezone, not the server clock, so dates don't drift for users far from the host region.
 - **Exports** escape user text before building HTML.
 
@@ -36,7 +40,7 @@ npm test          # run once
 npm run test:watch
 ```
 
-Vitest covers the pure logic where bugs hide quietly: amount/date validation, timezone-aware date maths (including month-end clamping, e.g. `Jan 31` + 1 month = `Feb 28`), commitment due-date status and advancement, and the voice parser.
+Vitest covers the pure logic where bugs hide quietly: amount/date validation, timezone-aware date maths (including month-end clamping, e.g. `Jan 31` + 1 month = `Feb 28`), commitment due-date status and advancement, the voice parser, and the loan maths — the EMI formula, the amortisation schedule (every row's opening/closing balance chain, the balance closing at exactly zero, and 0% loans not dividing by zero) and the prepayment simulation.
 
 ## Getting started
 
@@ -127,13 +131,17 @@ The app is set up for **Vercel** + **Supabase**. `vercel.json` pins the function
 | Path | What's in it |
 | --- | --- |
 | `app/(marketing)/` | The public landing page at `/` |
-| `app/(app)/` | Authenticated pages: `dashboard/` (expenses), `summary/`, `budget/`, `commitments/`, `reports/` |
+| `app/(app)/` | Authenticated pages: `dashboard/` (expenses), `summary/`, `budget/`, `commitments/`, `loans/`, `reports/` |
 | `app/(auth)/` | Public pages: `login/`, `signup/` |
 | `app/icon.svg`, `app/opengraph-image.tsx` | Favicon and the social-preview image for shared links |
+| `app/manifest.ts`, `app/icons/[size]/route.tsx`, `public/sw.js` | The web app manifest, build-time-generated home-screen icons, and the minimal service worker |
 | `components/landing/` | Landing-page pieces (`marketing-nav.tsx`, `app-preview.tsx`, `reveal.tsx`) |
 | `app/api/` | REST API route handlers (see below) |
-| `components/app-shell.tsx` | Sidebar, mobile top bar, bottom tab bar and account menu |
+| `components/app-shell.tsx` | Sidebar, mobile top bar, bottom tab bar and page chrome |
+| `components/account-menu.tsx` | Signed-in account card, the mobile account sheet, and the password-confirmed delete flow |
 | `components/views/` | The content of each page |
+| `components/expense-row.tsx`, `components/edit-expense-dialog.tsx` | An expense row and the dialog that edits one |
+| `components/loan-form.tsx`, `components/loan-card.tsx` | Loan entry with a live EMI preview, and the schedule/prepayment card |
 | `components/ui/` | Base shadcn/ui components, restyled for the theme |
 | `lib/store.tsx` | Client data store (`useExpenseStore`). Every mutation calls the API |
 | `lib/api.ts`, `lib/serialize.ts` | Response helpers and Prisma → JSON conversion |
@@ -141,6 +149,8 @@ The app is set up for **Vercel** + **Supabase**. `vercel.json` pins the function
 | `lib/validation.ts` | Zod schemas shared by the API |
 | `lib/rate-limit.ts` | Postgres-backed rate limiter for the auth routes |
 | `lib/commitments.ts` | Due-date status, advancement and monthly-cost maths (pure, unit tested) |
+| `lib/loans.ts` | EMI, amortisation schedule and prepayment maths (pure, unit tested) |
+| `lib/export.ts` | CSV and HTML report generation |
 | `lib/*.test.ts` | Vitest unit tests (`vitest.config.mts`) |
 | `prisma/schema.prisma` | Database schema |
 | `prisma/migrations/` | Versioned SQL migrations |
@@ -160,9 +170,14 @@ All routes are under `/api` and require a session cookie. Data is always filtere
 | `POST` | `/api/auth/logout` | Sign out |
 | `GET` | `/api/auth/me` | Current user, or `null` |
 | `PATCH` | `/api/auth/me` | Update the current user's settings (timezone) |
-| `GET` | `/api/bootstrap` | Everything the client needs: user, expenses, categories, budgets, commitments |
+| `DELETE` | `/api/auth/me` | Delete the account and everything in it. Requires the password again; rate limited |
+| `GET` | `/api/bootstrap` | Everything the client needs: user, expenses, categories, budgets, commitments, loans |
 | `POST` | `/api/expenses` | Add an expense (also creates the commitment when a repeat is set) |
+| `PATCH` | `/api/expenses/:id` | Edit an expense |
 | `DELETE` | `/api/expenses/:id` | Delete an expense |
+| `POST` | `/api/loans` | Add a loan |
+| `PATCH` | `/api/loans/:id` | Edit a loan's terms |
+| `DELETE` | `/api/loans/:id` | Delete a loan |
 | `POST` | `/api/categories` | Add a category |
 | `PUT` | `/api/budgets` | Create or update a category budget |
 | `POST` | `/api/commitments` | Add a commitment |

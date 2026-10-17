@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest"
 import {
   MAX_MONEY,
   budgetSchema,
+  deleteAccountSchema,
   isKnownTimezone,
   isRealDate,
   newCommitmentSchema,
   newExpenseSchema,
+  newLoanSchema,
   roundMoney,
   timezoneSchema,
   updateCommitmentSchema,
+  updateExpenseSchema,
+  updateLoanSchema,
   updateMeSchema,
 } from "@/lib/validation"
 
@@ -203,5 +207,146 @@ describe("updateCommitmentSchema", () => {
     expect(updateCommitmentSchema.safeParse({ remindDaysBefore: 99 }).success).toBe(false)
     expect(updateCommitmentSchema.safeParse({ kind: "mortgage" }).success).toBe(false)
     expect(updateCommitmentSchema.safeParse({ nextDue: "2026-02-31" }).success).toBe(false)
+  })
+})
+
+describe("updateExpenseSchema", () => {
+  it("accepts a single changed field", () => {
+    const result = updateExpenseSchema.safeParse({ amount: 320 })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).toEqual({ amount: 320 })
+  })
+
+  it("rejects an empty patch, which would be a no-op write", () => {
+    expect(updateExpenseSchema.safeParse({}).success).toBe(false)
+  })
+
+  it("strips unknown keys instead of passing them through", () => {
+    const result = updateExpenseSchema.safeParse({ description: "Lunch", userId: "someone-else", id: "hijack" })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).toEqual({ description: "Lunch" })
+  })
+
+  it("accepts null to turn a repeating expense back into a one-off", () => {
+    const result = updateExpenseSchema.safeParse({ recurringFrequency: null })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.recurringFrequency).toBeNull()
+  })
+
+  it("distinguishes an absent frequency from an explicit null", () => {
+    const result = updateExpenseSchema.safeParse({ amount: 10 })
+    expect(result.success).toBe(true)
+    if (result.success) expect("recurringFrequency" in result.data).toBe(false)
+  })
+
+  it("still enforces field rules when a field is present", () => {
+    expect(updateExpenseSchema.safeParse({ amount: 0 }).success).toBe(false)
+    expect(updateExpenseSchema.safeParse({ amount: MAX_MONEY + 1 }).success).toBe(false)
+    expect(updateExpenseSchema.safeParse({ date: "2026-02-31" }).success).toBe(false)
+    expect(updateExpenseSchema.safeParse({ description: "  " }).success).toBe(false)
+    expect(updateExpenseSchema.safeParse({ recurringFrequency: "daily" }).success).toBe(false)
+  })
+})
+
+const baseLoan = {
+  name: "Car loan",
+  principal: 500000,
+  annualRate: 9.5,
+  tenureMonths: 60,
+  firstDue: "2026-01-05",
+}
+
+describe("newLoanSchema", () => {
+  it("accepts a loan with only the required terms", () => {
+    const result = newLoanSchema.safeParse(baseLoan)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.principal).toBe(500000)
+      expect(result.data.annualRate).toBe(9.5)
+    }
+  })
+
+  it("accepts a 0% loan", () => {
+    const result = newLoanSchema.safeParse({ ...baseLoan, annualRate: 0 })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.annualRate).toBe(0)
+  })
+
+  it("rounds money and the rate to 2dp", () => {
+    const result = newLoanSchema.safeParse({ ...baseLoan, principal: 100000.456, annualRate: 8.629 })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.principal).toBe(100000.46)
+      expect(result.data.annualRate).toBe(8.63)
+    }
+  })
+
+  it("rejects a rate outside 0-100", () => {
+    expect(newLoanSchema.safeParse({ ...baseLoan, annualRate: -1 }).success).toBe(false)
+    expect(newLoanSchema.safeParse({ ...baseLoan, annualRate: 100 }).success).toBe(true)
+    expect(newLoanSchema.safeParse({ ...baseLoan, annualRate: 100.01 }).success).toBe(false)
+  })
+
+  it("requires a whole number of months within a sane range", () => {
+    expect(newLoanSchema.safeParse({ ...baseLoan, tenureMonths: 1 }).success).toBe(true)
+    expect(newLoanSchema.safeParse({ ...baseLoan, tenureMonths: 600 }).success).toBe(true)
+    expect(newLoanSchema.safeParse({ ...baseLoan, tenureMonths: 0 }).success).toBe(false)
+    expect(newLoanSchema.safeParse({ ...baseLoan, tenureMonths: 601 }).success).toBe(false)
+    expect(newLoanSchema.safeParse({ ...baseLoan, tenureMonths: 24.5 }).success).toBe(false)
+  })
+
+  it("rejects a zero principal and impossible dates", () => {
+    expect(newLoanSchema.safeParse({ ...baseLoan, principal: 0 }).success).toBe(false)
+    expect(newLoanSchema.safeParse({ ...baseLoan, firstDue: "2026-02-31" }).success).toBe(false)
+    expect(newLoanSchema.safeParse({ ...baseLoan, firstDue: "05/01/2026" }).success).toBe(false)
+  })
+
+  it("caps free text so a huge body can't be stored", () => {
+    expect(newLoanSchema.safeParse({ ...baseLoan, name: "x".repeat(121) }).success).toBe(false)
+    expect(newLoanSchema.safeParse({ ...baseLoan, lender: "x".repeat(121) }).success).toBe(false)
+    expect(newLoanSchema.safeParse({ ...baseLoan, notes: "x".repeat(501) }).success).toBe(false)
+  })
+})
+
+describe("updateLoanSchema", () => {
+  it("allows a single field", () => {
+    const result = updateLoanSchema.safeParse({ annualRate: 8.25 })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).toEqual({ annualRate: 8.25 })
+  })
+
+  it("rejects an empty patch", () => {
+    expect(updateLoanSchema.safeParse({}).success).toBe(false)
+  })
+
+  it("strips unknown keys instead of passing them through", () => {
+    const result = updateLoanSchema.safeParse({ principal: 250000, userId: "someone-else", id: "hijack" })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).toEqual({ principal: 250000 })
+  })
+
+  it("accepts null to clear the optional fields", () => {
+    const result = updateLoanSchema.safeParse({ lender: null, notes: null })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).toEqual({ lender: null, notes: null })
+  })
+
+  it("still enforces field rules when a field is present", () => {
+    expect(updateLoanSchema.safeParse({ tenureMonths: 0 }).success).toBe(false)
+    expect(updateLoanSchema.safeParse({ annualRate: 101 }).success).toBe(false)
+    expect(updateLoanSchema.safeParse({ firstDue: "2026-02-31" }).success).toBe(false)
+  })
+})
+
+describe("deleteAccountSchema", () => {
+  it("requires a non-empty password", () => {
+    expect(deleteAccountSchema.safeParse({ password: "Testpass123!" }).success).toBe(true)
+    expect(deleteAccountSchema.safeParse({ password: "" }).success).toBe(false)
+    expect(deleteAccountSchema.safeParse({}).success).toBe(false)
+  })
+
+  it("imposes no other password rules, so old passwords still work", () => {
+    // A user whose password predates our length rule must still be able to leave.
+    expect(deleteAccountSchema.safeParse({ password: "short" }).success).toBe(true)
   })
 })

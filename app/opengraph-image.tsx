@@ -8,7 +8,7 @@ export const alt = "Spendly — track expenses, budgets, bills and subscriptions
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
-const PILLS = ["Daily expenses", "Budgets", "Bills & EMIs", "Subscriptions", "CSV export"]
+const PILLS = ["Daily expenses", "Budgets", "Bills & EMIs", "Loans", "CSV export"]
 
 export default function OpengraphImage() {
   return new ImageResponse(

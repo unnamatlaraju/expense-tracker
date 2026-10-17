@@ -6,10 +6,13 @@ import {
   CalendarClock,
   ChartPie,
   Download,
+  Landmark,
   Lock,
   Mic,
   Receipt,
+  Search,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   Target,
   Wallet,
@@ -38,6 +41,11 @@ const FEATURES = [
     body: "Say “180 rupees lunch” and Spendly fills in the amount, category and date for you.",
   },
   {
+    icon: Search,
+    title: "Find and fix anything",
+    body: "Search by description or category, sort the list, and edit any entry in place. No starting over.",
+  },
+  {
     icon: Target,
     title: "Budgets that hold you",
     body: "Set a monthly limit per category and watch the progress bars fill up — before you overshoot.",
@@ -53,9 +61,19 @@ const FEATURES = [
     body: "See what's overdue, what's due this week and what's coming next, the moment you open the app.",
   },
   {
+    icon: Landmark,
+    title: "Loans, explained properly",
+    body: "Enter the amount, rate and tenure: get the EMI, the true total interest, the payoff date and the full month-by-month schedule. Add an extra monthly payment and see exactly what it saves you.",
+  },
+  {
     icon: ChartPie,
     title: "Know where it went",
     body: "Category breakdowns and six-month trends turn a pile of receipts into an actual picture.",
+  },
+  {
+    icon: Smartphone,
+    title: "Install it like an app",
+    body: "Add Spendly to your phone's home screen and it opens fullscreen, with no browser chrome and no app store.",
   },
 ]
 
@@ -72,8 +90,8 @@ const STEPS = [
   },
   {
     step: "03",
-    title: "Add your commitments",
-    body: "Rent, the electricity bill, your EMI, Netflix. Spendly keeps the dates in view.",
+    title: "Add your commitments and loans",
+    body: "Rent, the electricity bill, your EMI, Netflix — plus the loans behind those EMIs. Spendly keeps the dates in view and the interest maths visible.",
   },
 ]
 
@@ -91,12 +109,20 @@ const FAQ = [
     a: "Anything you pay on a schedule: rent, utilities, EMIs, insurance, streaming subscriptions. Mark one paid and the next due date is set automatically.",
   },
   {
+    q: "What does the loans page actually work out?",
+    a: "Your monthly EMI, the interest you'll pay over the whole term, the payoff date, and a full amortisation table showing how each instalment splits into interest and principal. It also answers the question lenders won't volunteer: what happens if you pay a bit extra every month.",
+  },
+  {
     q: "What can I do with my data?",
-    a: "Everything is yours. Filter your expenses in Reports and download them as a CSV whenever you want.",
+    a: "Everything is yours. Filter your expenses in Reports and download them — or any loan's amortisation schedule — as a CSV whenever you want.",
   },
   {
     q: "Who else can see my expenses?",
     a: "Nobody. Every record is scoped to your account, so another user can never read or edit it.",
+  },
+  {
+    q: "Can I delete my account?",
+    a: "Yes, from the account menu, confirmed with your password. Deleting it removes every expense, budget, commitment and loan with it.",
   },
 ]
 
@@ -118,7 +144,7 @@ export default function LandingPage() {
             <Reveal>
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-foreground/80">
                 <Sparkles className="size-3.5 text-primary" />
-                Expenses · Budgets · Bills in one place
+                Expenses · Budgets · Bills · Loans, in one place
               </span>
             </Reveal>
 
@@ -131,7 +157,8 @@ export default function LandingPage() {
             <Reveal delay={160}>
               <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                 Spendly tracks your daily expenses, keeps your budgets honest, and remembers every
-                bill, EMI and subscription — so nothing sneaks past you at the end of the month.
+                bill, EMI and subscription — and shows you what each loan really costs, down to the
+                last instalment.
               </p>
             </Reveal>
 

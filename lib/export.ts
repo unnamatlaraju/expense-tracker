@@ -1,4 +1,5 @@
 import { escapeHtml, formatCurrency, formatDate } from "@/lib/format"
+import type { Schedule } from "@/lib/loans"
 import type { Expense } from "@/lib/types"
 
 const download = (content: string, type: string, filename: string) => {
@@ -17,6 +18,38 @@ export const exportToCSV = (expenses: Expense[]) => {
   ]
   const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n")
   download(csv, "text/csv", "expenses.csv")
+}
+
+/** Sanitises a loan name into something safe to use as a filename. */
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "loan"
+
+/**
+ * The amortisation schedule as a spreadsheet, so the maths can be checked in
+ * Excel or handed to a lender.
+ */
+export const exportScheduleToCSV = (name: string, schedule: Schedule) => {
+  const rows = [
+    ["Instalment", "Due date", "Opening balance", "Payment", "Interest", "Principal", "Closing balance"],
+    ...schedule.instalments.map((row) => [
+      String(row.number),
+      row.due,
+      row.opening.toFixed(2),
+      row.payment.toFixed(2),
+      row.interest.toFixed(2),
+      row.principal.toFixed(2),
+      row.closing.toFixed(2),
+    ]),
+    [],
+    ["Total interest", schedule.totalInterest.toFixed(2)],
+    ["Total payable", schedule.totalPayable.toFixed(2)],
+  ]
+  const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n")
+  download(csv, "text/csv", `${slugify(name)}-schedule.csv`)
 }
 
 export const exportToHTMLReport = (
